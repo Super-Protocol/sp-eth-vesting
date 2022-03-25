@@ -17,11 +17,12 @@ contract Vesting {
         uint256 tokensPerSec;
         // vesting start time (differ when the address is p2p buyer)
         uint256 startTime;
+        bool fromReserve;
     }
     // immutable list of beneficiaries (+ p2p buyers)
     mapping(address => VestingInfo) private whitelist;
     // reserved list of beneficiaries added by owner after initialize
-    mapping(address => VestingInfo) private whitelistReserve;
+    // mapping(address => VestingInfo) private whitelistReserve;
     // amount of tokens allocated for whitelist
     uint256 public whitelistTokensLimit;
     // amount of tokens allocated for reserved whitelist
@@ -49,7 +50,12 @@ contract Vesting {
         _;
     }
 
-    function initialize(address tokenAddress, address[] memory accounts, uint256[] memory tokenAmounts, uint8 reservePercent) external {
+    function initialize(
+        address tokenAddress,
+        address[] memory accounts,
+        uint256[] memory tokenAmounts,
+        uint8 reservePercent
+    ) external {
         require(msg.sender == owner, "Not allowed to initialize");
         require(startTime == 0, "Already initialized");
         token = IERC20(tokenAddress);
@@ -70,31 +76,29 @@ contract Vesting {
             require(account != address(0), "Address is zero");
             whitelistTokensSum += tokenAmount;
             require(whitelistTokensSum <= whitelistTokensLimit, "Exceeded tokens limit");
-            whitelist[account] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / DURATION, startTime);
+            whitelist[account] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / DURATION, startTime, false);
         }
     }
 
     function addBeneficiary(address beneficiary, uint256 tokenAmount) external afterInitialize {
         require(msg.sender == owner, "Not allowed to add beneficiary");
         require(beneficiary != address(0), "Address is zero");
-        require(whitelist[beneficiary].tokensPerSec == 0, "Beneficiary is already in the main whitelist");
+        require(whitelist[beneficiary].startTime == 0, "Beneficiary is already in whitelist");
         whitelistReserveTokensUsed += tokenAmount;
         require(whitelistReserveTokensUsed <= whitelistReserveTokensLimit, "Exceeded tokens limit");
-        whitelistReserve[beneficiary] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / DURATION, startTime);
+        whitelist[beneficiary] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / DURATION, startTime, true);
     }
 
-    function getBeneficiaryInfo(address beneficiary) public view returns (bool, VestingInfo memory) {
+    function getBeneficiaryInfo(address beneficiary) public view returns (VestingInfo memory) {
         if (whitelist[beneficiary].startTime > 0) {
-            return (true, whitelist[beneficiary]);
-        } else if (whitelistReserve[beneficiary].startTime > 0) {
-            return (false, whitelistReserve[beneficiary]);
+            return whitelist[beneficiary];
         } else {
             revert("Account is not in whitelist");
         }
     }
 
     function calculateClaim(address beneficiary) external view afterInitialize returns (uint256) {
-        (, VestingInfo memory vesting) = getBeneficiaryInfo(beneficiary);
+        VestingInfo memory vesting = getBeneficiaryInfo(beneficiary);
 
         return _calculateClaim(vesting);
     }
@@ -111,76 +115,51 @@ contract Vesting {
 
     function claim(uint256 amount) external {
         address sender = msg.sender;
-        (bool inMainWhitelist, VestingInfo memory vesting) = getBeneficiaryInfo(sender);
+        VestingInfo memory vesting = getBeneficiaryInfo(sender);
 
-        uint tokensToClaim = _calculateClaim(vesting);
+        uint256 tokensToClaim = _calculateClaim(vesting);
         require(tokensToClaim >= amount, "Requested more than unlocked");
 
-        if (inMainWhitelist) {
-            if (vesting.tokensPending > 0) {
-                if (amount <= vesting.tokensPending) {
-                    whitelist[sender].tokensPending -= amount;
-                } else {
-                    whitelist[sender].tokensLocked -= amount - vesting.tokensPending;
-                    whitelist[sender].tokensPending = 0;
-                }
+        if (vesting.tokensPending > 0) {
+            if (amount <= vesting.tokensPending) {
+                whitelist[sender].tokensPending -= amount;
             } else {
-                whitelist[sender].tokensLocked -= amount;
+                whitelist[sender].tokensLocked -= amount - vesting.tokensPending;
+                whitelist[sender].tokensPending = 0;
             }
         } else {
-            if (vesting.tokensPending > 0) {
-                if (amount <= vesting.tokensPending) {
-                    whitelistReserve[sender].tokensPending -= amount;
-                } else {
-                    whitelistReserve[sender].tokensLocked -= amount - vesting.tokensPending;
-                    whitelistReserve[sender].tokensPending = 0;
-                }
-            } else {
-                whitelistReserve[sender].tokensLocked -= amount;
-            }
+            whitelist[sender].tokensLocked -= amount;
         }
 
         token.transfer(sender, amount);
     }
 
-    function sellShare(address to, uint amountLocked, uint amountUnlocked) external afterInitialize {
+    function sellShare(
+        address to,
+        uint256 amountLocked,
+        uint256 amountUnlocked
+    ) external afterInitialize {
         address sender = msg.sender;
         require(sender != to, "Cannot sell to the same address");
-        (bool inMainWhitelist, VestingInfo memory vesting) = getBeneficiaryInfo(sender);
+        VestingInfo memory vesting = getBeneficiaryInfo(sender);
 
-        uint unlocked = _calculateClaim(vesting);
+        uint256 unlocked = _calculateClaim(vesting);
 
         require(vesting.tokensLocked - unlocked >= amountLocked, "Requested more locked tokens than available");
         require(unlocked >= amountUnlocked, "Requested more unlocked tokens than available");
 
-        if (inMainWhitelist) {
-            whitelist[sender].tokensLocked -= amountLocked;
-            whitelist[sender].tokensUnlockedSold += amountUnlocked;
-            if (vesting.tokensPending > 0) {
-                if (amountUnlocked <= vesting.tokensPending) {
-                    whitelist[sender].tokensPending -= amountUnlocked;
-                } else {
-                    whitelist[sender].tokensLocked -= amountUnlocked - vesting.tokensPending;
-                    whitelist[sender].tokensPending = 0;
-                }
+        whitelist[sender].tokensLocked -= amountLocked;
+        whitelist[sender].tokensUnlockedSold += amountUnlocked;
+        if (vesting.tokensPending > 0) {
+            if (amountUnlocked <= vesting.tokensPending) {
+                whitelist[sender].tokensPending -= amountUnlocked;
             } else {
-                whitelist[sender].tokensLocked -= amountUnlocked;
+                whitelist[sender].tokensLocked -= amountUnlocked - vesting.tokensPending;
+                whitelist[sender].tokensPending = 0;
             }
-            whitelist[to] = VestingInfo(amountLocked, amountUnlocked, 0, 0, amountLocked / (finishTime - block.timestamp), block.timestamp);
         } else {
-            whitelistReserve[sender].tokensLocked -= amountLocked;
-            whitelistReserve[sender].tokensUnlockedSold += amountUnlocked;
-            if (vesting.tokensPending > 0) {
-                if (amountUnlocked <= vesting.tokensPending) {
-                    whitelistReserve[sender].tokensPending -= amountUnlocked;
-                } else {
-                    whitelistReserve[sender].tokensLocked -= amountUnlocked - vesting.tokensPending;
-                    whitelistReserve[sender].tokensPending = 0;
-                }
-            } else {
-                whitelistReserve[sender].tokensLocked -= amountUnlocked;
-            }
-            whitelistReserve[to] = VestingInfo(amountLocked, amountUnlocked, 0, 0, amountLocked / (finishTime - block.timestamp), block.timestamp);
+            whitelist[sender].tokensLocked -= amountUnlocked;
         }
+        whitelist[to] = VestingInfo(amountLocked, amountUnlocked, 0, 0, amountLocked / (finishTime - block.timestamp), block.timestamp, vesting.fromReserve);
     }
 }
