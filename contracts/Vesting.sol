@@ -160,6 +160,14 @@ contract Vesting {
         } else {
             whitelist[sender].tokensLocked -= amountUnlocked;
         }
-        whitelist[to] = VestingInfo(amountLocked, amountUnlocked, 0, 0, amountLocked / (finishTime - block.timestamp), block.timestamp, vesting.fromReserve);
+        whitelist[to] = VestingInfo(
+            amountLocked,
+            amountUnlocked,
+            0,
+            0,
+            amountLocked / (finishTime - block.timestamp),
+            block.timestamp,
+            vesting.fromReserve
+        );
     }
 }

@@ -7,11 +7,11 @@ describe('Vesting', function () {
     let superproToken: SuperproToken;
     let vesting: Vesting;
     let owner: SignerWithAddress,
-    user1: SignerWithAddress,
-    user2: SignerWithAddress,
-    user3: SignerWithAddress,
-    user4: SignerWithAddress,
-    user5: SignerWithAddress;
+        user1: SignerWithAddress,
+        user2: SignerWithAddress,
+        user3: SignerWithAddress,
+        user4: SignerWithAddress,
+        user5: SignerWithAddress;
 
     const lockup = 7948800;
     const vestingDuration = 36460800;
@@ -28,20 +28,20 @@ describe('Vesting', function () {
         vesting = await Vesting.deploy(owner.address);
         await vesting.deployed();
         snapshot = await network.provider.request({
-            method: "evm_snapshot",
-            params: []
+            method: 'evm_snapshot',
+            params: [],
         });
     });
 
-    afterEach(async  function() {
+    afterEach(async function () {
         await network.provider.request({
-            method: "evm_revert",
+            method: 'evm_revert',
             params: [snapshot],
         });
 
         snapshot = await network.provider.request({
-            method: "evm_snapshot",
-            params: []
+            method: 'evm_snapshot',
+            params: [],
         });
     });
 
@@ -51,7 +51,7 @@ describe('Vesting', function () {
 
     async function initializeDefault() {
         const users = [user1.address, user2.address, user3.address];
-        
+
         const tokenAmounts = [addDecimals(2000), addDecimals(3000), addDecimals(4000)];
         await superproToken.transfer(vesting.address, addDecimals(10000));
         await vesting.initialize(superproToken.address, users, tokenAmounts, 90);
@@ -69,7 +69,7 @@ describe('Vesting', function () {
 
         expect(await vesting.whitelistTokensLimit()).be.equal(addDecimals(9000)); // 90%
         expect(await vesting.whitelistReserveTokensLimit()).be.equal(addDecimals(1000)); // 10%
-    
+
         await expect(vesting.initialize(superproToken.address, [], [], 90)).be.revertedWith('Already initialized');
     });
 
@@ -78,10 +78,12 @@ describe('Vesting', function () {
     });
 
     it('should revert initialize when input params incorrect', async function () {
-        await expect(vesting.initialize(superproToken.address, [user1.address, user2.address], [1000], 90)).be.revertedWith('Users and tokenAmounts length mismatch');
+        await expect(vesting.initialize(superproToken.address, [user1.address, user2.address], [1000], 90)).be.revertedWith(
+            'Users and tokenAmounts length mismatch'
+        );
         await expect(vesting.initialize(superproToken.address, [], [], 90)).be.revertedWith('No users');
         await expect(vesting.initialize(superproToken.address, [user1.address], [1000], 90)).be.revertedWith('Zero token balance');
-   
+
         await superproToken.transfer(vesting.address, 1000);
         await expect(vesting.initialize(superproToken.address, [user1.address], [1000], 90)).be.revertedWith('Exceeded tokens limit');
 
@@ -103,8 +105,8 @@ describe('Vesting', function () {
 
         await vesting.addBeneficiary(user4.address, addDecimals(1000));
 
-        await network.provider.send("evm_increaseTime", [lockup + 999]);
-        await network.provider.send("evm_mine");
+        await network.provider.send('evm_increaseTime', [lockup + 999]);
+        await network.provider.send('evm_mine');
 
         const claim = await vesting.calculateClaim(user4.address);
         const record = await vesting.getBeneficiaryInfo(user4.address);
@@ -138,8 +140,8 @@ describe('Vesting', function () {
         await initializeDefault();
         const record = await vesting.getBeneficiaryInfo(user1.address);
 
-        await network.provider.send("evm_increaseTime", [lockup + 998]);
-        await network.provider.send("evm_mine");
+        await network.provider.send('evm_increaseTime', [lockup + 998]);
+        await network.provider.send('evm_mine');
 
         await expect(vesting.connect(user1).claim(record.tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
     });
@@ -148,22 +150,22 @@ describe('Vesting', function () {
         await initializeDefault();
         const record = await vesting.getBeneficiaryInfo(user1.address);
 
-        await network.provider.send("evm_increaseTime", [lockup + 999]);
-        await network.provider.send("evm_mine");
+        await network.provider.send('evm_increaseTime', [lockup + 999]);
+        await network.provider.send('evm_mine');
 
-        vesting.connect(user1).claim(record.tokensPerSec.mul(1000))
+        vesting.connect(user1).claim(record.tokensPerSec.mul(1000));
     });
 
     it('should allow beneficiary from main whitelist to sell share to another address', async function () {
         const seconds = Math.floor(new Date().getTime() / 1000);
-        await network.provider.send("evm_setNextBlockTimestamp", [seconds]);
-        await network.provider.send("evm_mine");
-        
+        await network.provider.send('evm_setNextBlockTimestamp', [seconds]);
+        await network.provider.send('evm_mine');
+
         await initializeDefault();
         const user1RecordOld = await vesting.getBeneficiaryInfo(user1.address);
 
-        await network.provider.send("evm_setNextBlockTimestamp", [seconds + lockup + 99999]);
-        await network.provider.send("evm_mine");
+        await network.provider.send('evm_setNextBlockTimestamp', [seconds + lockup + 99999]);
+        await network.provider.send('evm_mine');
 
         const sellLocked = addDecimals(10);
         const sellUnlocked = addDecimals(1);
@@ -182,19 +184,19 @@ describe('Vesting', function () {
 
     it('should allow beneficiary from reserve whitelist to sell share to another address', async function () {
         const seconds = Math.floor(new Date().getTime() / 1000);
-        await network.provider.send("evm_setNextBlockTimestamp", [seconds]);
-        await network.provider.send("evm_mine");
-        
+        await network.provider.send('evm_setNextBlockTimestamp', [seconds]);
+        await network.provider.send('evm_mine');
+
         await initializeDefault();
         await vesting.addBeneficiary(user4.address, addDecimals(1000));
         const user4RecordOld = await vesting.getBeneficiaryInfo(user4.address);
 
-        await network.provider.send("evm_setNextBlockTimestamp", [seconds + lockup + 99999]);
-        await network.provider.send("evm_mine");
+        await network.provider.send('evm_setNextBlockTimestamp', [seconds + lockup + 99999]);
+        await network.provider.send('evm_mine');
 
         const sellLocked = addDecimals(10);
         const sellUnlocked = addDecimals(1);
-        
+
         await vesting.connect(user4).sellShare(user5.address, sellLocked, sellUnlocked);
 
         const user4Record = await vesting.getBeneficiaryInfo(user4.address);
@@ -207,29 +209,33 @@ describe('Vesting', function () {
         expect(user5Record.startTime.toNumber()).be.equal(seconds + lockup + 100000);
     });
 
-    it('should forbid sellShare when seller and buyer addresses are the same', async function () {        
+    it('should forbid sellShare when seller and buyer addresses are the same', async function () {
         await initializeDefault();
         const sellLocked = addDecimals(10);
         const sellUnlocked = addDecimals(1);
         await expect(vesting.connect(user1).sellShare(user1.address, sellLocked, sellUnlocked)).be.revertedWith('Cannot sell to the same address');
     });
 
-    it('should forbid sellShare when buyer address is not presented', async function () {        
+    it('should forbid sellShare when buyer address is not presented', async function () {
         await initializeDefault();
         const sellLocked = addDecimals(10);
         const sellUnlocked = addDecimals(1);
         await expect(vesting.connect(user1).sellShare(user1.address, sellLocked, sellUnlocked)).be.revertedWith('Cannot sell to the same address');
     });
 
-    it('should forbid sellShare if requested more assets than available', async function () {        
+    it('should forbid sellShare if requested more assets than available', async function () {
         await initializeDefault();
-        await network.provider.send("evm_increaseTime", [lockup]);
-        await network.provider.send("evm_mine");
+        await network.provider.send('evm_increaseTime', [lockup]);
+        await network.provider.send('evm_mine');
 
         let sellLocked = addDecimals(2001);
         const sellUnlocked = addDecimals(1);
-        await expect(vesting.connect(user1).sellShare(user4.address, sellLocked, sellUnlocked)).be.revertedWith('Requested more locked tokens than available');
+        await expect(vesting.connect(user1).sellShare(user4.address, sellLocked, sellUnlocked)).be.revertedWith(
+            'Requested more locked tokens than available'
+        );
         sellLocked = addDecimals(10);
-        await expect(vesting.connect(user1).sellShare(user4.address, sellLocked, sellUnlocked)).be.revertedWith('Requested more unlocked tokens than available');
+        await expect(vesting.connect(user1).sellShare(user4.address, sellLocked, sellUnlocked)).be.revertedWith(
+            'Requested more unlocked tokens than available'
+        );
     });
 });
