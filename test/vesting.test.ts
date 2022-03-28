@@ -10,8 +10,7 @@ describe('Vesting', function () {
         user1: SignerWithAddress,
         user2: SignerWithAddress,
         user3: SignerWithAddress,
-        user4: SignerWithAddress,
-        user5: SignerWithAddress;
+        user4: SignerWithAddress;
 
     const lockup = 7948800;
     const vestingDuration = 36460800;
@@ -19,7 +18,7 @@ describe('Vesting', function () {
     let snapshot: any;
 
     before(async function () {
-        [owner, user1, user2, user3, user4, user5] = await ethers.getSigners();
+        [owner, user1, user2, user3, user4] = await ethers.getSigners();
         const SuperproTokenFactory: SuperproToken__factory = await ethers.getContractFactory('SuperproToken');
         superproToken = await SuperproTokenFactory.deploy(addDecimals(100000), 'Superpro Test Token', 'SPT');
         await superproToken.deployed();
@@ -128,12 +127,12 @@ describe('Vesting', function () {
 
     it('should forbid to claim if user has no locked tokens', async function () {
         await initializeDefault();
-        await expect(vesting.claim(1)).be.revertedWith('Account is not in whitelist');
+        await expect(vesting.claim(owner.address, 1)).be.revertedWith('Account is not in whitelist');
     });
 
     it('should forbid to claim during lock-up period', async function () {
         await initializeDefault();
-        await expect(vesting.connect(user1).claim(1)).be.revertedWith('Cannot claim during 3 months lock-up period');
+        await expect(vesting.connect(user1).claim(user1.address, 1)).be.revertedWith('Cannot claim during 3 months lock-up period');
     });
 
     it('should forbid to claim if requested more than unlocked', async function () {
@@ -143,7 +142,7 @@ describe('Vesting', function () {
         await network.provider.send('evm_increaseTime', [lockup + 998]);
         await network.provider.send('evm_mine');
 
-        await expect(vesting.connect(user1).claim(record.tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
+        await expect(vesting.connect(user1).claim(user1.address, record.tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
     });
 
     it('should allow beneficiary to claim', async function () {
@@ -153,10 +152,63 @@ describe('Vesting', function () {
         await network.provider.send('evm_increaseTime', [lockup + 999]);
         await network.provider.send('evm_mine');
 
-        vesting.connect(user1).claim(record.tokensPerSec.mul(1000));
+        const claimAmount = record.tokensPerSec.mul(1000);
+        await vesting.connect(user1).claim(user1.address, claimAmount);
+        const record2 = await vesting.getBeneficiaryInfo(user1.address);
+
+        expect(record2.tokensLocked).be.equal(record.tokensLocked.sub(claimAmount));
+        expect(record2.tokensClaimed).be.equal(claimAmount);
     });
 
-    it('should allow beneficiary from main whitelist to sell share to another address', async function () {
+    it('should allow beneficiary to claim all after vesting finished', async function () {
+        await initializeDefault();
+
+        await network.provider.send('evm_increaseTime', [lockup + vestingDuration]);
+        await network.provider.send('evm_mine');
+
+        await vesting.connect(user1).claim(user1.address, addDecimals(2000));
+        const record = await vesting.getBeneficiaryInfo(user1.address);
+        expect(record.tokensLocked).be.equal(0);
+        expect(record.tokensClaimed).be.equal(addDecimals(2000));
+    });
+
+    it('should not change claim amount when beneficiary paused vesting', async function () {
+        await initializeDefault();
+
+        await network.provider.send('evm_increaseTime', [lockup + 999]);
+        await network.provider.send('evm_mine');
+
+        await vesting.connect(user1).setPaused(true);
+        const claimOld = await vesting.calculateClaim(user1.address);
+
+        await network.provider.send('evm_increaseTime', [3600]);
+        await network.provider.send('evm_mine');
+
+        const claimNew = await vesting.calculateClaim(user1.address);
+        expect(claimOld).be.equal(claimNew);
+    });
+
+    it('should update claim amount after beneficiary unpaused vesting', async function () {
+        await initializeDefault();
+
+        await network.provider.send('evm_increaseTime', [lockup + 999]);
+        await network.provider.send('evm_mine');
+
+        await vesting.connect(user1).setPaused(true);
+        const claimOld = await vesting.calculateClaim(user1.address);
+
+        await network.provider.send('evm_increaseTime', [999]);
+        await network.provider.send('evm_mine');
+
+        await vesting.connect(user1).setPaused(false);
+        const claimNew = await vesting.calculateClaim(user1.address);
+        const record = await vesting.getBeneficiaryInfo(user1.address);
+
+        expect(claimNew.sub(claimOld)).be.equal(record.tokensPerSec.mul(1000));
+        expect(claimNew).be.equal(record.tokensPerSec.mul(2000));
+    });
+
+    it('should allow beneficiary to sell share to another address', async function () {
         const seconds = Math.floor(new Date().getTime() / 1000);
         await network.provider.send('evm_setNextBlockTimestamp', [seconds]);
         await network.provider.send('evm_mine');
@@ -167,75 +219,30 @@ describe('Vesting', function () {
         await network.provider.send('evm_setNextBlockTimestamp', [seconds + lockup + 99999]);
         await network.provider.send('evm_mine');
 
-        const sellLocked = addDecimals(10);
-        const sellUnlocked = addDecimals(1);
+        const share = addDecimals(10);
 
-        await vesting.connect(user1).sellShare(user4.address, sellLocked, sellUnlocked);
+        await vesting.connect(user1).sellShare(user4.address, share);
 
         const user1Record = await vesting.getBeneficiaryInfo(user1.address);
         const user4Record = await vesting.getBeneficiaryInfo(user4.address);
-        expect(user1Record.tokensLocked).be.equal(user1RecordOld.tokensLocked.sub(sellLocked.add(sellUnlocked)));
-        expect(user1Record.tokensUnlockedSold).be.equal(sellUnlocked);
-        expect(user4Record.tokensLocked).be.equal(sellLocked);
-        expect(user4Record.tokensPending).be.equal(sellUnlocked);
+        expect(user1Record.tokensLocked).be.equal(user1RecordOld.tokensLocked.sub(share));
+        expect(user4Record.tokensLocked).be.equal(share);
         expect(user4Record.tokensClaimed).be.equal(0);
         expect(user4Record.startTime.toNumber()).be.equal(seconds + lockup + 100000);
     });
 
-    it('should allow beneficiary from reserve whitelist to sell share to another address', async function () {
-        const seconds = Math.floor(new Date().getTime() / 1000);
-        await network.provider.send('evm_setNextBlockTimestamp', [seconds]);
-        await network.provider.send('evm_mine');
-
-        await initializeDefault();
-        await vesting.addBeneficiary(user4.address, addDecimals(1000));
-        const user4RecordOld = await vesting.getBeneficiaryInfo(user4.address);
-
-        await network.provider.send('evm_setNextBlockTimestamp', [seconds + lockup + 99999]);
-        await network.provider.send('evm_mine');
-
-        const sellLocked = addDecimals(10);
-        const sellUnlocked = addDecimals(1);
-
-        await vesting.connect(user4).sellShare(user5.address, sellLocked, sellUnlocked);
-
-        const user4Record = await vesting.getBeneficiaryInfo(user4.address);
-        const user5Record = await vesting.getBeneficiaryInfo(user5.address);
-        expect(user4Record.tokensLocked).be.equal(user4RecordOld.tokensLocked.sub(sellLocked.add(sellUnlocked)));
-        expect(user4Record.tokensUnlockedSold).be.equal(sellUnlocked);
-        expect(user5Record.tokensLocked).be.equal(sellLocked);
-        expect(user5Record.tokensPending).be.equal(sellUnlocked);
-        expect(user5Record.tokensClaimed).be.equal(0);
-        expect(user5Record.startTime.toNumber()).be.equal(seconds + lockup + 100000);
-    });
-
     it('should forbid sellShare when seller and buyer addresses are the same', async function () {
         await initializeDefault();
-        const sellLocked = addDecimals(10);
-        const sellUnlocked = addDecimals(1);
-        await expect(vesting.connect(user1).sellShare(user1.address, sellLocked, sellUnlocked)).be.revertedWith('Cannot sell to the same address');
+        const share = addDecimals(10);
+        await expect(vesting.connect(user1).sellShare(user1.address, share)).be.revertedWith('Cannot sell to the same address');
     });
 
-    it('should forbid sellShare when buyer address is not presented', async function () {
-        await initializeDefault();
-        const sellLocked = addDecimals(10);
-        const sellUnlocked = addDecimals(1);
-        await expect(vesting.connect(user1).sellShare(user1.address, sellLocked, sellUnlocked)).be.revertedWith('Cannot sell to the same address');
-    });
-
-    it('should forbid sellShare if requested more assets than available', async function () {
+    it('should forbid sellShare if requested more tokens than available', async function () {
         await initializeDefault();
         await network.provider.send('evm_increaseTime', [lockup]);
         await network.provider.send('evm_mine');
 
-        let sellLocked = addDecimals(2001);
-        const sellUnlocked = addDecimals(1);
-        await expect(vesting.connect(user1).sellShare(user4.address, sellLocked, sellUnlocked)).be.revertedWith(
-            'Requested more locked tokens than available'
-        );
-        sellLocked = addDecimals(10);
-        await expect(vesting.connect(user1).sellShare(user4.address, sellLocked, sellUnlocked)).be.revertedWith(
-            'Requested more unlocked tokens than available'
-        );
+        const share = addDecimals(2001);
+        await expect(vesting.connect(user1).sellShare(user4.address, share)).be.revertedWith('Requested more tokens than available');
     });
 });

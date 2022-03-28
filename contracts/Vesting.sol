@@ -7,36 +7,28 @@ contract Vesting {
     struct VestingInfo {
         // amount of locked tokens
         uint256 tokensLocked;
-        // amount of tokens to be claimed (when buying a share p2p, amount of unlocked tokens of seller)
-        uint256 tokensPending;
-        // amount of unlocked tokens sold p2p
-        uint256 tokensUnlockedSold;
         // sum of claimed tokens
         uint256 tokensClaimed;
         // amount of tokens unlocked per second
         uint256 tokensPerSec;
         // vesting start time (differ when the address is p2p buyer)
         uint256 startTime;
-        bool fromReserve;
+        uint256 pausedTime;
     }
-    // immutable list of beneficiaries (+ p2p buyers)
+    // list of beneficiaries
     mapping(address => VestingInfo) private whitelist;
-    // reserved list of beneficiaries added by owner after initialize
-    // mapping(address => VestingInfo) private whitelistReserve;
     // amount of tokens allocated for whitelist
     uint256 public whitelistTokensLimit;
-    // amount of tokens allocated for reserved whitelist
+    // amount of tokens allocated for reserve whitelist
     uint256 public whitelistReserveTokensLimit;
     uint256 public whitelistReserveTokensUsed;
     // date of start after lock-up period
     uint64 public startTime;
     // date of vesting finish
     uint64 public finishTime;
-
-    // uint64 public constant MONTH = 30 days;
-    // lock-up time
+    // 3 months lock-up time
     uint64 public constant LOCKUP_TIME = 7948800;
-    // vesting duration
+    // 33 months vesting duration
     uint64 public constant DURATION = 36460800;
     IERC20 public token;
     address public immutable owner;
@@ -66,7 +58,7 @@ contract Vesting {
         require(accounts.length > 0, "No users");
         uint256 vestingBalance = token.balanceOf(address(this));
         require(vestingBalance > 0, "Zero token balance");
-        whitelistTokensLimit = (vestingBalance / 100) * reservePercent;
+        whitelistTokensLimit = (vestingBalance * reservePercent) / 100;
         whitelistReserveTokensLimit = vestingBalance - whitelistTokensLimit;
         uint256 whitelistTokensSum;
 
@@ -76,7 +68,7 @@ contract Vesting {
             require(account != address(0), "Address is zero");
             whitelistTokensSum += tokenAmount;
             require(whitelistTokensSum <= whitelistTokensLimit, "Exceeded tokens limit");
-            whitelist[account] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / DURATION, startTime, false);
+            whitelist[account] = VestingInfo(tokenAmount, 0, tokenAmount / DURATION, startTime, 0);
         }
     }
 
@@ -86,7 +78,7 @@ contract Vesting {
         require(whitelist[beneficiary].startTime == 0, "Beneficiary is already in whitelist");
         whitelistReserveTokensUsed += tokenAmount;
         require(whitelistReserveTokensUsed <= whitelistReserveTokensLimit, "Exceeded tokens limit");
-        whitelist[beneficiary] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / DURATION, startTime, true);
+        whitelist[beneficiary] = VestingInfo(tokenAmount, 0, tokenAmount / DURATION, startTime, 0);
     }
 
     function getBeneficiaryInfo(address beneficiary) public view returns (VestingInfo memory) {
@@ -105,69 +97,49 @@ contract Vesting {
 
     function _calculateClaim(VestingInfo memory vesting) private view returns (uint256) {
         require(block.timestamp > vesting.startTime, "Cannot claim during 3 months lock-up period");
+        if (vesting.pausedTime > 0) {
+            return (vesting.pausedTime - vesting.startTime) * vesting.tokensPerSec - vesting.tokensClaimed;
+        }
 
         if (block.timestamp < finishTime) {
-            return (block.timestamp - vesting.startTime) * vesting.tokensPerSec - vesting.tokensClaimed + vesting.tokensPending;
+            return (block.timestamp - vesting.startTime) * vesting.tokensPerSec - vesting.tokensClaimed;
         } else {
             return vesting.tokensLocked;
         }
     }
 
-    function claim(uint256 amount) external {
+    function claim(address to, uint256 amount) external {
         address sender = msg.sender;
         VestingInfo memory vesting = getBeneficiaryInfo(sender);
+        uint256 unlocked = _calculateClaim(vesting);
+        require(unlocked >= amount, "Requested more than unlocked");
 
-        uint256 tokensToClaim = _calculateClaim(vesting);
-        require(tokensToClaim >= amount, "Requested more than unlocked");
+        whitelist[sender].tokensLocked -= amount;
+        whitelist[sender].tokensClaimed += amount;
 
-        if (vesting.tokensPending > 0) {
-            if (amount <= vesting.tokensPending) {
-                whitelist[sender].tokensPending -= amount;
-            } else {
-                whitelist[sender].tokensLocked -= amount - vesting.tokensPending;
-                whitelist[sender].tokensPending = 0;
-            }
-        } else {
-            whitelist[sender].tokensLocked -= amount;
-        }
-
-        token.transfer(sender, amount);
+        token.transfer(to, amount);
     }
 
-    function sellShare(
-        address to,
-        uint256 amountLocked,
-        uint256 amountUnlocked
-    ) external afterInitialize {
+    function sellShare(address to, uint256 amount) external afterInitialize {
         address sender = msg.sender;
         require(sender != to, "Cannot sell to the same address");
         VestingInfo memory vesting = getBeneficiaryInfo(sender);
 
         uint256 unlocked = _calculateClaim(vesting);
 
-        require(vesting.tokensLocked - unlocked >= amountLocked, "Requested more locked tokens than available");
-        require(unlocked >= amountUnlocked, "Requested more unlocked tokens than available");
+        require(vesting.tokensLocked - unlocked >= amount, "Requested more tokens than available");
 
-        whitelist[sender].tokensLocked -= amountLocked;
-        whitelist[sender].tokensUnlockedSold += amountUnlocked;
-        if (vesting.tokensPending > 0) {
-            if (amountUnlocked <= vesting.tokensPending) {
-                whitelist[sender].tokensPending -= amountUnlocked;
-            } else {
-                whitelist[sender].tokensLocked -= amountUnlocked - vesting.tokensPending;
-                whitelist[sender].tokensPending = 0;
-            }
+        whitelist[sender].tokensLocked -= amount;
+
+        whitelist[to] = VestingInfo(amount, 0, amount / (finishTime - block.timestamp), block.timestamp, 0);
+    }
+
+    function setPaused(bool paused) external afterInitialize {
+        require(whitelist[msg.sender].startTime > 0, "Account is not in whitelist");
+        if (paused) {
+            whitelist[msg.sender].pausedTime = block.timestamp;
         } else {
-            whitelist[sender].tokensLocked -= amountUnlocked;
+            whitelist[msg.sender].pausedTime = 0;
         }
-        whitelist[to] = VestingInfo(
-            amountLocked,
-            amountUnlocked,
-            0,
-            0,
-            amountLocked / (finishTime - block.timestamp),
-            block.timestamp,
-            vesting.fromReserve
-        );
     }
 }
