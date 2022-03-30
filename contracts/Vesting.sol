@@ -107,7 +107,7 @@ contract Vesting {
         require(whitelist[sender].lastChange > 0, "Claimer is not in whitelist");
         VestingInfo memory vesting = calculateProfitAndStage(sender);
         require(vesting.stagedProfit >= amount, "Requested more than unlocked");
-        
+
         whitelist[sender].stagedProfit -= amount;
         whitelist[sender].tokensClaimed += amount;
         token.transfer(to, amount);

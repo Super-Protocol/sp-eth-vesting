@@ -6,11 +6,7 @@ import { Vesting, Vesting__factory, SuperproToken, SuperproToken__factory } from
 describe('Vesting', function () {
     let superproToken: SuperproToken;
     let vesting: Vesting;
-    let owner: SignerWithAddress,
-        user1: SignerWithAddress,
-        user2: SignerWithAddress,
-        user3: SignerWithAddress,
-        user4: SignerWithAddress;
+    let owner: SignerWithAddress, user1: SignerWithAddress, user2: SignerWithAddress, user3: SignerWithAddress, user4: SignerWithAddress;
 
     const DURATION = 86745600;
     const LOCKUP_END = 1661990400;
@@ -145,7 +141,7 @@ describe('Vesting', function () {
 
     it('should forbid to claim if user is not in whitelist', async function () {
         await initializeDefault();
-        await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END]);;
+        await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END]);
         await network.provider.send('evm_mine');
         await expect(vesting.claim(owner.address, 1)).be.revertedWith('Claimer is not in whitelist');
     });
@@ -154,7 +150,7 @@ describe('Vesting', function () {
         await initializeDefault();
         const record = await vesting.getBeneficiaryInfo(user1.address);
 
-        await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END + 998]);;
+        await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END + 998]);
         await network.provider.send('evm_mine');
 
         await expect(vesting.connect(user1).claim(user1.address, record.tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
@@ -260,7 +256,7 @@ describe('Vesting', function () {
 
         await vesting.connect(user1).setPaused(false);
         const claim3 = await vesting.calculateClaim(user1.address);
-        
+
         expect(claim3).be.equal(0);
     });
 
