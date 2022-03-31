@@ -23,11 +23,11 @@ contract Vesting {
     bool initialized;
 
     // Sep 01 2022 00:00:00 UTC+0
-    uint64 public constant LOCKUP_END = 1661990400;
+    uint64 public constant VESTING_LOCKUP_END = 1661990400;
     // Jun 01 2025 00:00:00 UTC+0
-    uint64 public constant FINISH = 1748736000;
+    uint64 public constant VESTING_FINISH = 1748736000;
     // 33 months vesting duration
-    uint64 public constant DURATION = 86745600;
+    uint64 public constant VESTING_DURATION = 86745600;
 
     IERC20 public token;
 
@@ -64,7 +64,7 @@ contract Vesting {
             require(account != address(0), "Address is zero");
             whitelistTokensSum += tokenAmount;
             require(whitelistTokensSum <= mainAllocation, "Exceeded tokens limit");
-            whitelist[account] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / DURATION, LOCKUP_END);
+            whitelist[account] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / VESTING_DURATION, VESTING_LOCKUP_END);
         }
     }
 
@@ -74,7 +74,7 @@ contract Vesting {
         require(whitelist[beneficiary].lastChange == 0, "Beneficiary is already in whitelist");
         whitelistReserveTokensUsed += tokenAmount;
         require(whitelistReserveTokensUsed <= whitelistReserveTokensLimit, "Exceeded tokens limit");
-        whitelist[beneficiary] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / DURATION, LOCKUP_END);
+        whitelist[beneficiary] = VestingInfo(tokenAmount, 0, 0, 0, tokenAmount / VESTING_DURATION, VESTING_LOCKUP_END);
     }
 
     function getBeneficiaryInfo(address beneficiary) public view returns (VestingInfo memory) {
@@ -95,14 +95,14 @@ contract Vesting {
         if (vesting.pausedTime > 0 || block.timestamp < vesting.lastChange) {
             return 0;
         }
-        if (block.timestamp < FINISH) {
+        if (block.timestamp < VESTING_FINISH) {
             return (uint64(block.timestamp) - vesting.lastChange) * vesting.tokensPerSec;
         }
         return vesting.tokensLocked;
     }
 
     function claim(address to, uint96 amount) external {
-        require(block.timestamp > LOCKUP_END, "Cannot claim during 3 months lock-up period");
+        require(block.timestamp > VESTING_LOCKUP_END, "Cannot claim during 3 months lock-up period");
         address sender = msg.sender;
         require(whitelist[sender].lastChange > 0, "Claimer is not in whitelist");
         VestingInfo memory vesting = calculateProfitAndStage(sender);
@@ -120,31 +120,31 @@ contract Vesting {
 
         uint64 timestamp = uint64(block.timestamp);
         VestingInfo storage buyer = whitelist[to];
-        if (timestamp > LOCKUP_END) {
+        if (timestamp > VESTING_LOCKUP_END) {
             VestingInfo memory seller = calculateProfitAndStage(sender);
             require(seller.tokensLocked >= amount, "Requested more tokens than locked");
 
             whitelist[sender].tokensLocked -= amount;
-            whitelist[sender].tokensPerSec = whitelist[sender].tokensLocked / (FINISH - timestamp);
+            whitelist[sender].tokensPerSec = whitelist[sender].tokensLocked / (VESTING_FINISH - timestamp);
 
             if (buyer.lastChange == 0) {
-                whitelist[to] = VestingInfo(amount, 0, 0, 0, amount / (FINISH - timestamp), timestamp);
+                whitelist[to] = VestingInfo(amount, 0, 0, 0, amount / (VESTING_FINISH - timestamp), timestamp);
             } else {
                 buyer.tokensLocked += amount;
                 if (buyer.pausedTime == 0) {
                     calculateProfitAndStage(to);
-                    buyer.tokensPerSec = buyer.tokensLocked / (FINISH - timestamp);
+                    buyer.tokensPerSec = buyer.tokensLocked / (VESTING_FINISH - timestamp);
                 }
             }
         } else {
             if (buyer.lastChange == 0) {
-                whitelist[to] = VestingInfo(amount, 0, 0, 0, amount / DURATION, LOCKUP_END);
+                whitelist[to] = VestingInfo(amount, 0, 0, 0, amount / VESTING_DURATION, VESTING_LOCKUP_END);
             } else {
                 buyer.tokensLocked += amount;
-                buyer.tokensPerSec = buyer.tokensLocked / DURATION;
+                buyer.tokensPerSec = buyer.tokensLocked / VESTING_DURATION;
             }
             whitelist[sender].tokensLocked -= amount;
-            whitelist[sender].tokensPerSec = whitelist[sender].tokensLocked / DURATION;
+            whitelist[sender].tokensPerSec = whitelist[sender].tokensLocked / VESTING_DURATION;
         }
     }
 
@@ -152,7 +152,7 @@ contract Vesting {
         VestingInfo storage vesting = whitelist[msg.sender];
         require(vesting.lastChange > 0, "Account is not in whitelist");
         uint64 timestamp = uint64(block.timestamp);
-        require(timestamp > LOCKUP_END, "Cannot pause during 3 months lock-up period");
+        require(timestamp > VESTING_LOCKUP_END, "Cannot pause during 3 months lock-up period");
         if (paused) {
             require(vesting.pausedTime == 0, "Already on pause");
             calculateProfitAndStage(msg.sender);
@@ -162,7 +162,7 @@ contract Vesting {
             require(vesting.pausedTime > 0, "Already unpaused");
             vesting.pausedTime = 0;
             vesting.lastChange = timestamp;
-            vesting.tokensPerSec = timestamp < FINISH ? vesting.tokensLocked / (FINISH - timestamp) : 0;
+            vesting.tokensPerSec = timestamp < VESTING_FINISH ? vesting.tokensLocked / (VESTING_FINISH - timestamp) : 0;
         }
     }
 
