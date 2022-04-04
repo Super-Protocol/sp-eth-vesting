@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 import "./openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract Vesting {
+contract InsidersVesting {
     struct VestingInfo {
         uint96 tokensLocked;
         uint96 tokensClaimed;
@@ -30,6 +30,8 @@ contract Vesting {
     uint64 public constant VESTING_DURATION = 86745600;
 
     IERC20 public token;
+
+    event TokensClaimed(address indexed to, uint256 amount);
 
     constructor(address _owner) {
         owner = _owner;
@@ -111,6 +113,7 @@ contract Vesting {
         whitelist[sender].stagedProfit -= amount;
         whitelist[sender].tokensClaimed += amount;
         token.transfer(to, amount);
+        emit TokensClaimed(to, amount);
     }
 
     function sellShare(address to, uint96 amount) external afterInitialize {
