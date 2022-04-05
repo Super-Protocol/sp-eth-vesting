@@ -26,11 +26,6 @@ export default {
         enabled: true,
         currency: 'USD',
     },
-    diamondPreprocessor: {
-        disabled: false,
-        ignoreFuncs: false,
-        ignoreStructs: false,
-    },
     mocha: {
         timeout: 0,
         bail: true,

@@ -1,7 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers, network } from 'hardhat';
-import { SuperproToken, SuperproToken__factory, InsidersVesting__factory, InsidersVesting } from '../typechain';
+import { SuperproToken, InsidersVesting } from '../typechain';
 
 describe('InsidersVesting', function () {
     let superproToken: SuperproToken;
@@ -16,10 +16,10 @@ describe('InsidersVesting', function () {
 
     before(async function () {
         [owner, user1, user2, user3, user4] = await ethers.getSigners();
-        const SuperproTokenFactory: SuperproToken__factory = await ethers.getContractFactory('SuperproToken');
+        const SuperproTokenFactory = await ethers.getContractFactory('SuperproToken');
         superproToken = await SuperproTokenFactory.deploy(parseEther(100000), 'SPT', 'Superpro Test Token');
         await superproToken.deployed();
-        const Vesting: InsidersVesting__factory = await ethers.getContractFactory('InsidersVesting');
+        const Vesting = await ethers.getContractFactory('InsidersVesting');
 
         vesting = await Vesting.deploy(owner.address);
         await vesting.deployed();
