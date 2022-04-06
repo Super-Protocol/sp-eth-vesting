@@ -1,4 +1,5 @@
 import '@nomiclabs/hardhat-waffle';
+import "@nomiclabs/hardhat-etherscan";
 import '@typechain/hardhat';
 import 'hardhat-gas-reporter';
 import 'hardhat-contract-sizer';
@@ -43,18 +44,16 @@ export default {
                 count: 10,
             },
         },
-        local: {
-            url: 'http://localhost:8545',
-            account: config.localhostDeployerPrivateKey,
-        },
-        mumbai: {
-            // https://docs.matic.network/docs/develop/network-details/network/
-            chainId: 80001,
-            url: 'https://matic-mumbai.chainstacklabs.com',
-            accounts: [config.mumbaiDeployerPrivateKey],
+        rinkeby: {
+            url: config.rinkebyUrl,
+            accounts:
+              [config.privateKey],
         },
         mainnet: {
             url: '',
         },
+    },
+    etherscan: {
+        apiKey: config.etherscanApiKey,
     },
 };

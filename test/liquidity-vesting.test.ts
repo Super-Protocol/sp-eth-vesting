@@ -48,7 +48,7 @@ describe('LiquidityRewardsVesting', function () {
 
     async function initializeDefault() {
         await superproToken.transfer(vesting.address, TOTAL_TOKENS);
-        await vesting.connect(admin).initialize(superproToken.address);
+        await vesting.connect(admin).initialize(superproToken.address, START);
     }
 
     it('should initialize correctly', async function () {
@@ -56,16 +56,16 @@ describe('LiquidityRewardsVesting', function () {
 
         expect(await vesting.owner()).be.equal(admin.address);
         expect(await vesting.token()).be.equal(superproToken.address);
-        await expect(vesting.connect(admin).initialize(superproToken.address)).be.revertedWith('Already initialized');
+        await expect(vesting.connect(admin).initialize(superproToken.address, START)).be.revertedWith('Already initialized');
     });
 
     it('should revert initialize if sender is not the owner', async function () {
-        await expect(vesting.connect(impostor).initialize(superproToken.address)).be.revertedWith('Not allowed');
+        await expect(vesting.connect(impostor).initialize(superproToken.address, START)).be.revertedWith('Not allowed');
     });
 
     it('should revert initialize when vesting token balance is lower than desired', async function () {
         await superproToken.transfer(vesting.address, parseEther(89_999_999));
-        await expect(vesting.connect(admin).initialize(superproToken.address)).be.revertedWith('Token balance lower than desired');
+        await expect(vesting.connect(admin).initialize(superproToken.address, START)).be.revertedWith('Token balance lower than desired');
     });
 
     it('should forbid to claim if requested more than unlocked', async function () {

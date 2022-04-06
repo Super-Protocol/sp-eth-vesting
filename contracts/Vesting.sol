@@ -10,7 +10,8 @@ abstract contract Vesting {
     uint96 public tokensLocked;
     uint96 public tokensPerSec;
     uint96 public tokensClaimed;
-
+    uint64 public vestingStart;
+    uint64 public vestingFinish;
     IERC20 public token;
 
     event TokensClaimed(uint256 amount);
@@ -21,16 +22,22 @@ abstract contract Vesting {
     }
 
     function tokensTotal() public pure virtual returns (uint96);
+    function vestingDuration() public pure virtual returns (uint64);
 
-    function vestingStart() public pure virtual returns (uint64);
-
-    function vestingFinish() public pure virtual returns (uint64);
-
-    function initialize(address _token) external virtual;
+    function initialize(address _token, uint64 _vestingStart) external onlyAdmin {
+        require(!initialized, "Already initialized");
+        initialized = true;
+        vestingStart = _vestingStart;
+        vestingFinish = vestingStart + vestingDuration();
+        tokensLocked = tokensTotal();
+        tokensPerSec = tokensLocked / vestingDuration();
+        token = IERC20(_token);
+        require(token.balanceOf(address(this)) >= tokensLocked, "Token balance lower than desired");
+    }
 
     function calculateClaim() public view returns (uint96) {
-        if (block.timestamp < vestingFinish()) {
-            return (uint64(block.timestamp) - vestingStart()) * tokensPerSec;
+        if (block.timestamp < vestingFinish) {
+            return (uint64(block.timestamp) - vestingStart) * tokensPerSec;
         }
         return tokensLocked;
     }
