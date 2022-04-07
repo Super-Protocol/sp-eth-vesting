@@ -37,7 +37,7 @@ abstract contract Vesting {
 
     function calculateClaim() public view returns (uint96) {
         if (block.timestamp < vestingFinish) {
-            return (uint64(block.timestamp) - vestingStart) * tokensPerSec;
+            return (uint64(block.timestamp) - vestingStart) * tokensPerSec - tokensClaimed;
         }
         return tokensLocked;
     }

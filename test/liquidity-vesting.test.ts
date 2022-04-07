@@ -73,7 +73,11 @@ describe('LiquidityRewardsVesting', function () {
         const tokensPerSec = await vesting.tokensPerSec();
         await expect(vesting.connect(admin).calculateClaim()).be.reverted;
 
-        await network.provider.send('evm_setNextBlockTimestamp', [START + 998]);
+        await network.provider.send('evm_setNextBlockTimestamp', [START + 999]);
+        await network.provider.send('evm_mine');
+        await vesting.connect(admin).claim(tokensPerSec.mul(1000));
+
+        await network.provider.send('evm_setNextBlockTimestamp', [START + 1998]);
         await network.provider.send('evm_mine');
         await expect(vesting.connect(admin).claim(tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
     });
