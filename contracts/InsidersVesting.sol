@@ -35,11 +35,6 @@ contract InsidersVesting {
         owner = _owner;
     }
 
-    modifier afterInitialize() {
-        require(initialized, "Vesting has not started yet");
-        _;
-    }
-
     modifier onlyFromWhitelist() {
         require(whitelist[msg.sender].lastVestingUpdate > 0, "You are not in whitelist");
         _;
@@ -113,16 +108,14 @@ contract InsidersVesting {
         address to,
         uint96 lockedTokens,
         uint96 unlockedTokens
-    ) external afterInitialize onlyFromWhitelist {
-        address sender = msg.sender;
-        require(sender != to, "Cannot sell to the same address");
-        BeneficiaryInfo memory from = calculateProfitAndStage(sender);
+    ) external onlyFromWhitelist {
+        BeneficiaryInfo memory from = calculateProfitAndStage(msg.sender);
         require(from.tokensLocked >= lockedTokens, "Requested more tokens than locked");
         require(from.tokensUnlocked >= unlockedTokens, "Requested more tokens than unlocked");
         _transfer(to, lockedTokens, unlockedTokens);
     }
 
-    function transferAll(address to) external afterInitialize onlyFromWhitelist {
+    function transferAll(address to) external onlyFromWhitelist {
         BeneficiaryInfo memory from = calculateProfitAndStage(msg.sender);
         _transfer(to, from.tokensLocked, from.tokensUnlocked);
     }
@@ -133,7 +126,7 @@ contract InsidersVesting {
         uint96 unlockedTokens
     ) private {
         address sender = msg.sender;
-        require(sender != to, "Cannot sell to the same address");
+        require(sender != to, "Cannot transfer to the same address");
         uint64 timestamp = uint64(block.timestamp);
         BeneficiaryInfo storage buyer = whitelist[to];
 

@@ -54,6 +54,17 @@ describe('InsidersVesting', function () {
         await vesting.initialize(superproToken.address, users, tokenAmounts, START);
     }
 
+    it('should be able to iterate over 200 beneficiaries', async function () {
+        const accounts = new Array(200);
+        const amounts = new Array(200);
+        for (let i = 0; i < accounts.length; i++) {
+            accounts[i] = user1.address;
+            amounts[i] = parseEther(2000000);
+        }
+        await superproToken.transfer(vesting.address, TOKENS_TOTAL);
+        await expect(vesting.initialize(superproToken.address, accounts, amounts, START)).not.be.reverted;
+    });
+
     it('should initialize correctly', async function () {
         await initializeDefault();
 
@@ -69,17 +80,6 @@ describe('InsidersVesting', function () {
         expect(await vesting.vestingFinish()).be.equal(LOCKUP_END + DURATION);
 
         await expect(vesting.initialize(superproToken.address, [], [], START)).be.revertedWith('Already initialized');
-    });
-
-    it('should be able to iterate over 200 beneficiaries', async function () {
-        const accounts = new Array(500);
-        const amounts = new Array(500);
-        for (let i = 0; i < accounts.length; i++) {
-            accounts[i] = user1.address;
-            amounts[i] = parseEther(2000000);
-        }
-        await superproToken.transfer(vesting.address, TOKENS_TOTAL);
-        await expect(vesting.initialize(superproToken.address, accounts, amounts, START)).not.be.reverted;
     });
 
     it('should revert initialize if sender is not the owner', async function () {
@@ -303,7 +303,7 @@ describe('InsidersVesting', function () {
     it('should forbid transfer when seller and buyer addresses are the same', async function () {
         await initializeDefault();
         const share = parseEther(10);
-        await expect(vesting.connect(user1).transfer(user1.address, share, share)).be.revertedWith('Cannot sell to the same address');
+        await expect(vesting.connect(user1).transfer(user1.address, share, 0)).be.revertedWith('Cannot transfer to the same address');
     });
 
     it('should forbid transfer if requested more tokens than available', async function () {
