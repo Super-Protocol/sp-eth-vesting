@@ -5,7 +5,7 @@ async function main() {
         throw new Error('ADMIN_MULTISIG is not provided');
     }
 
-    const Vesting = await ethers.getContractFactory('Vesting');
+    const Vesting = await ethers.getContractFactory('InsidersVesting');
     const vesting = await Vesting.deploy(process.env.ADMIN_MULTISIG);
     await vesting.deployed();
 

@@ -22,6 +22,7 @@ abstract contract Vesting {
     }
 
     function tokensTotal() public pure virtual returns (uint96);
+
     function vestingDuration() public pure virtual returns (uint64);
 
     function initialize(address _token, uint64 _vestingStart) external onlyAdmin {

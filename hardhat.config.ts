@@ -1,5 +1,5 @@
 import '@nomiclabs/hardhat-waffle';
-import "@nomiclabs/hardhat-etherscan";
+import '@nomiclabs/hardhat-etherscan';
 import '@typechain/hardhat';
 import 'hardhat-gas-reporter';
 import 'hardhat-contract-sizer';
@@ -46,8 +46,7 @@ export default {
         },
         rinkeby: {
             url: config.rinkebyUrl,
-            accounts:
-              [config.privateKey],
+            accounts: [config.privateKey],
         },
         mainnet: {
             url: '',
