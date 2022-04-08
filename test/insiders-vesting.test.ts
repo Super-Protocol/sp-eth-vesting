@@ -1,7 +1,13 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 import { ethers, network } from 'hardhat';
 import { SuperproToken, InsidersVesting } from '../typechain';
+
+interface BeneficiaryInit {
+    account: string;
+    tokenAmount: BigNumber;
+} 
 
 describe('InsidersVesting', function () {
     let superproToken: SuperproToken;
@@ -47,22 +53,26 @@ describe('InsidersVesting', function () {
     }
 
     async function initializeDefault() {
-        const users = [user1.address, user2.address, user3.address];
-
-        const tokenAmounts = [parseEther(2000), parseEther(3000), parseEther(4000)];
+        const beneficiaries: BeneficiaryInit[] = [
+            {account: user1.address, tokenAmount: parseEther(2000)},
+            {account: user2.address, tokenAmount: parseEther(3000)},
+            {account: user3.address, tokenAmount: parseEther(4000)}
+        ];
         await superproToken.transfer(vesting.address, TOKENS_TOTAL);
-        await vesting.initialize(superproToken.address, users, tokenAmounts, START);
+        await vesting.initialize(superproToken.address, beneficiaries, START);
     }
 
     it('should be able to iterate over 200 beneficiaries', async function () {
-        const accounts = new Array(200);
-        const amounts = new Array(200);
-        for (let i = 0; i < accounts.length; i++) {
-            accounts[i] = user1.address;
-            amounts[i] = parseEther(2000000);
+        const beneficiaries: BeneficiaryInit[] = new Array(200);
+        for (let i = 0; i < beneficiaries.length; i++) {
+            beneficiaries[i] = {
+                account: user1.address,
+                tokenAmount: parseEther(2000000)
+            };
         }
+        
         await superproToken.transfer(vesting.address, TOKENS_TOTAL);
-        await expect(vesting.initialize(superproToken.address, accounts, amounts, START)).not.be.reverted;
+        await expect(vesting.initialize(superproToken.address, beneficiaries, START)).not.be.reverted;
     });
 
     it('should initialize correctly', async function () {
@@ -79,11 +89,11 @@ describe('InsidersVesting', function () {
         expect(await vesting.lockupEnd()).be.equal(LOCKUP_END);
         expect(await vesting.vestingFinish()).be.equal(LOCKUP_END + DURATION);
 
-        await expect(vesting.initialize(superproToken.address, [], [], START)).be.revertedWith('Already initialized');
+        await expect(vesting.initialize(superproToken.address, [], START)).be.revertedWith('Already initialized');
     });
 
     it('should revert initialize if sender is not the owner', async function () {
-        await expect(vesting.connect(user1).initialize(superproToken.address, [], [], START)).be.revertedWith('Not allowed to initialize');
+        await expect(vesting.connect(user1).initialize(superproToken.address, [], START)).be.revertedWith('Not allowed to initialize');
     });
 
     it('should revert getBeneficiaryInfo if account is not in whitelist', async function () {
@@ -91,19 +101,17 @@ describe('InsidersVesting', function () {
     });
 
     it('should revert initialize when input params incorrect', async function () {
-        await expect(vesting.initialize(superproToken.address, [user1.address, user2.address], [900], START)).be.revertedWith(
-            'Users and tokenAmounts length mismatch'
-        );
-        await expect(vesting.initialize(superproToken.address, [], [], START)).be.revertedWith('No users');
+        await expect(vesting.initialize(superproToken.address, [], START)).be.revertedWith('No users');
         await superproToken.transfer(vesting.address, 1000);
-        await expect(vesting.initialize(superproToken.address, [user1.address], [900], START)).be.revertedWith('Insufficient token balance');
+        let beneficiaries: BeneficiaryInit[] = [{account: user1.address, tokenAmount: BigNumber.from(1000) }];
+        await expect(vesting.initialize(superproToken.address, beneficiaries, START)).be.revertedWith('Insufficient token balance');
 
         await superproToken.transfer(vesting.address, TOKENS_TOTAL.sub(1000));
-        await expect(
-            vesting.initialize(superproToken.address, [user1.address, user2.address], [parseEther(200000000), parseEther(200000001)], START)
-        ).be.revertedWith('Exceeded tokens limit');
-
-        await expect(vesting.initialize(superproToken.address, [ethers.constants.AddressZero], [900], START)).be.revertedWith('Address is zero');
+        beneficiaries = [
+            {account: user1.address, tokenAmount: parseEther(200000000)},
+            {account: user2.address, tokenAmount: parseEther(200000001)}
+        ]
+        await expect(vesting.initialize(superproToken.address, beneficiaries, START)).be.revertedWith('Exceeded tokens limit');
     });
 
     it('should calculate claim 0 before lock-up end', async function () {
@@ -129,7 +137,11 @@ describe('InsidersVesting', function () {
         await initializeDefault();
         const record = await vesting.getBeneficiaryInfo(user1.address);
 
-        await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END + 998]);
+        await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END + 999]);
+        await network.provider.send('evm_mine');
+        await vesting.connect(user1).claim(user1.address, record.tokensPerSec.mul(1000))
+
+        await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END + 1998]);
         await network.provider.send('evm_mine');
 
         await expect(vesting.connect(user1).claim(user1.address, record.tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
