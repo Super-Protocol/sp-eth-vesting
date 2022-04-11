@@ -28,7 +28,7 @@ contract InsidersVesting {
     uint64 public lockupEnd;
     uint64 public vestingFinish;
 
-    uint64 public constant VESTING_LOCKUP_DURATION = 90 * 1 days;
+    uint64 public constant VESTING_LOCKUP_DURATION = 90 days;
     uint64 public constant VESTING_DURATION = 86745600; // 33 months
     uint96 public constant TOKENS_TOTAL = 400_000_000 * 1e18;
 
@@ -55,18 +55,19 @@ contract InsidersVesting {
         initialized = true;
         require(beneficiaries.length > 0, "No users");
         token = IERC20(tokenAddress);
-        require(token.balanceOf(address(this)) >= TOKENS_TOTAL, "Insufficient token balance");
+        require(token.balanceOf(address(this)) == TOKENS_TOTAL, "Insufficient token balance");
+        require(_vestingStart > block.timestamp, "Start timestamp is in the past");
         vestingStart = _vestingStart;
         lockupEnd = _vestingStart + VESTING_LOCKUP_DURATION;
         vestingFinish = _vestingStart + VESTING_LOCKUP_DURATION + VESTING_DURATION;
-        uint96 whitelistTokensSum;
+        uint96 tokensLimitRemaining = TOKENS_TOTAL;
 
         for (uint96 i = 0; i < beneficiaries.length; i++) {
             BeneficiaryInit memory b = beneficiaries[i]; 
-            whitelistTokensSum += b.tokenAmount;
-            require(whitelistTokensSum <= TOKENS_TOTAL, "Exceeded tokens limit");
+            tokensLimitRemaining -= b.tokenAmount;
             whitelist[b.account] = BeneficiaryInfo(_vestingStart, b.tokenAmount, 0, 0, 0, 0, b.tokenAmount / VESTING_DURATION, lockupEnd);
         }
+        require(tokensLimitRemaining == 0, "Not all tokens are distributed");
     }
 
     function getBeneficiaryInfo(address beneficiary) public view returns (BeneficiaryInfo memory) {
@@ -107,13 +108,13 @@ contract InsidersVesting {
 
     function transfer(
         address to,
-        uint96 lockedTokens,
-        uint96 unlockedTokens
+        uint96 tokensLocked,
+        uint96 tokensUnlocked
     ) external onlyFromWhitelist {
         BeneficiaryInfo memory sender = calculateClaimAndStage(msg.sender);
-        require(sender.tokensLocked >= lockedTokens, "Requested more tokens than locked");
-        require(sender.tokensUnlocked >= unlockedTokens, "Requested more tokens than unlocked");
-        _transfer(to, lockedTokens, unlockedTokens);
+        require(sender.tokensLocked >= tokensLocked, "Requested more tokens than locked");
+        require(sender.tokensUnlocked >= tokensUnlocked, "Requested more tokens than unlocked");
+        _transfer(to, tokensLocked, tokensUnlocked);
     }
 
     function transferAll(address to) external onlyFromWhitelist {
@@ -123,47 +124,45 @@ contract InsidersVesting {
 
     function _transfer(
         address to,
-        uint96 lockedTokens,
-        uint96 unlockedTokens
+        uint96 tokensLocked,
+        uint96 tokensUnlocked
     ) private {
         require(msg.sender != to, "Cannot transfer to the same address");
         uint64 timestamp = uint64(block.timestamp);
         BeneficiaryInfo storage sender = whitelist[msg.sender];
         BeneficiaryInfo storage recipient = whitelist[to];
 
-        sender.tokensLocked -= lockedTokens;
-        sender.tokensLockedTransferred += lockedTokens;
-
+        sender.tokensLocked -= tokensLocked;
+        sender.tokensLockedTransferred += tokensLocked;
+        uint64 durationLeft;
+        uint64 lastVestingUpdate;
         if (timestamp > lockupEnd) {
-            sender.tokensUnlocked -= unlockedTokens;
-            sender.tokensUnlockedTransferred += unlockedTokens;
-            sender.tokensPerSec = sender.tokensLocked / (vestingFinish - timestamp);
-
-            if (recipient.lastVestingUpdate == 0) {
-                whitelist[to] = BeneficiaryInfo(
-                    timestamp,
-                    lockedTokens,
-                    unlockedTokens,
-                    0,
-                    0,
-                    0,
-                    lockedTokens / (vestingFinish - timestamp),
-                    timestamp
-                );
-            } else {
-                calculateClaimAndStage(to);
-                recipient.tokensLocked += lockedTokens;
-                recipient.tokensUnlocked += unlockedTokens;
-                recipient.tokensPerSec = recipient.tokensLocked / (vestingFinish - timestamp);
-            }
+            // set durationLeft = 1 after vesting finish to avoid division by zero
+            durationLeft = vestingFinish > timestamp ? vestingFinish - timestamp : 1;
+            lastVestingUpdate = timestamp;
         } else {
-            sender.tokensPerSec = sender.tokensLocked / VESTING_DURATION;
-            if (recipient.lastVestingUpdate == 0) {
-                whitelist[to] = BeneficiaryInfo(timestamp, lockedTokens, 0, 0, 0, 0, lockedTokens / VESTING_DURATION, lockupEnd);
-            } else {
-                recipient.tokensLocked += lockedTokens;
-                recipient.tokensPerSec = recipient.tokensLocked / VESTING_DURATION;
-            }
+            durationLeft = VESTING_DURATION;
+            lastVestingUpdate = lockupEnd;
+        }
+        sender.tokensUnlocked -= tokensUnlocked;
+        sender.tokensUnlockedTransferred += tokensUnlocked;
+        sender.tokensPerSec = sender.tokensLocked / durationLeft;
+        if (recipient.lastVestingUpdate == 0) {
+            whitelist[to] = BeneficiaryInfo(
+                timestamp,
+                tokensLocked,
+                tokensUnlocked,
+                0,
+                0,
+                0,
+                tokensLocked / durationLeft,
+                lastVestingUpdate
+            );
+        } else {
+            calculateClaimAndStage(to);
+            recipient.tokensLocked += tokensLocked;
+            recipient.tokensUnlocked += tokensUnlocked;
+            recipient.tokensPerSec = recipient.tokensLocked / durationLeft;
         }
     }
 
