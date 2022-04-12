@@ -8,12 +8,14 @@ struct BeneficiaryInit {
     uint96 tokenAmount;
 }
 
-contract InsidersVesting {
+contract InsidersVestingTest {
     struct BeneficiaryInfo {
         uint64 startTime;
         uint96 tokensLocked;
         uint96 tokensUnlocked;
         uint96 tokensClaimed;
+        uint96 tokensLockedTransferred;
+        uint96 tokensUnlockedTransferred;
         // amount of tokens unlocked per second
         uint96 tokensPerSec;
         // date of pulling unlocked tokens from locked (transfer, claim)
@@ -26,13 +28,12 @@ contract InsidersVesting {
     uint64 public lockupEnd;
     uint64 public vestingFinish;
 
-    uint64 public constant VESTING_LOCKUP_DURATION = 90 days;
-    uint64 public constant VESTING_DURATION = 86745600; // 33 months
+    uint64 public constant VESTING_LOCKUP_DURATION = 20 minutes;
+    uint64 public constant VESTING_DURATION = 20 minutes;
 
     IERC20 public token;
 
-    event TokensClaimed(address indexed from, address indexed to, uint256 amount);
-    event TokensTransferred(address indexed from, address indexed to, uint256 amountLocked, uint256 amountUnlocked);
+    event TokensClaimed(address indexed to, uint256 amount);
 
     constructor(address _owner) {
         owner = _owner;
@@ -63,7 +64,7 @@ contract InsidersVesting {
         for (uint96 i = 0; i < beneficiaries.length; i++) {
             BeneficiaryInit memory b = beneficiaries[i]; 
             tokensLimitRemaining -= b.tokenAmount;
-            whitelist[b.account] = BeneficiaryInfo(_vestingStart, b.tokenAmount, 0, 0, b.tokenAmount / VESTING_DURATION, lockupEnd);
+            whitelist[b.account] = BeneficiaryInfo(_vestingStart, b.tokenAmount, 0, 0, 0, 0, b.tokenAmount / VESTING_DURATION, lockupEnd);
         }
         require(tokensLimitRemaining == 0, "Not all tokens are distributed");
     }
@@ -101,7 +102,7 @@ contract InsidersVesting {
         whitelist[sender].tokensUnlocked -= amount;
         whitelist[sender].tokensClaimed += amount;
         token.transfer(to, amount);
-        emit TokensClaimed(sender, to, amount);
+        emit TokensClaimed(to, amount);
     }
 
     function transfer(
@@ -131,6 +132,7 @@ contract InsidersVesting {
         BeneficiaryInfo storage recipient = whitelist[to];
 
         sender.tokensLocked -= tokensLocked;
+        sender.tokensLockedTransferred += tokensLocked;
         uint64 durationLeft;
         uint64 lastVestingUpdate;
         if (timestamp > lockupEnd) {
@@ -142,12 +144,15 @@ contract InsidersVesting {
             lastVestingUpdate = lockupEnd;
         }
         sender.tokensUnlocked -= tokensUnlocked;
+        sender.tokensUnlockedTransferred += tokensUnlocked;
         sender.tokensPerSec = sender.tokensLocked / durationLeft;
         if (recipient.lastVestingUpdate == 0) {
             whitelist[to] = BeneficiaryInfo(
                 timestamp,
                 tokensLocked,
                 tokensUnlocked,
+                0,
+                0,
                 0,
                 tokensLocked / durationLeft,
                 lastVestingUpdate
@@ -158,7 +163,6 @@ contract InsidersVesting {
             recipient.tokensUnlocked += tokensUnlocked;
             recipient.tokensPerSec = recipient.tokensLocked / durationLeft;
         }
-        emit TokensTransferred(msg.sender, to, tokensLocked, tokensUnlocked);
     }
 
     // pass only existing beneficiary

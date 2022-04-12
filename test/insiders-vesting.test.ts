@@ -1,6 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { BigNumber, ContractReceipt } from 'ethers';
 import { ethers, network } from 'hardhat';
 import { SuperproToken, InsidersVesting } from '../typechain';
 
@@ -103,12 +103,11 @@ describe('InsidersVesting', function () {
 
     it('should revert initialize when input params incorrect', async function () {
         await expect(vesting.initialize(superproToken.address, [], START)).be.revertedWith('No users');
-        await superproToken.transfer(vesting.address, 1000);
         let beneficiaries: BeneficiaryInit[] = [{account: user1.address, tokenAmount: BigNumber.from(1000) }];
-        await expect(vesting.initialize(superproToken.address, beneficiaries, START)).be.revertedWith('Insufficient token balance');
+        await expect(vesting.initialize(superproToken.address, beneficiaries, START)).be.revertedWith('Zero token balance');
 
-        await superproToken.transfer(vesting.address, TOKENS_TOTAL.sub(1000));
-        const timeInPast = Math.floor(Date.now() / 1000) - 2;
+        await superproToken.transfer(vesting.address, TOKENS_TOTAL);
+        const timeInPast = Math.floor(Date.now() / 1000) - 3;
         await expect(vesting.initialize(superproToken.address, beneficiaries, timeInPast)).be.revertedWith('Start timestamp is in the past');
 
         beneficiaries = [
@@ -172,6 +171,22 @@ describe('InsidersVesting', function () {
         expect(await superproToken.balanceOf(user2.address)).be.equal(claimAmount);
     });
 
+    it('should emit TokensClaimed event on claim', async function () {
+        await initializeDefault();
+
+        await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END + 999]);
+        await network.provider.send('evm_mine');
+
+        const claimAmount = (await vesting.getBeneficiaryInfo(user1.address)).tokensPerSec.mul(1000);
+        const tx = await vesting.connect(user1).claim(user2.address, claimAmount);
+        const receipt: ContractReceipt = await tx.wait();
+        const event: any = receipt.events?.find(x => x.event === 'TokensClaimed');
+        expect(event, 'TokensClaimed event wasn`t emitted').be.ok;
+        expect(event.args.from).eq(user1.address);
+        expect(event.args.to).eq(user2.address);
+        expect(event.args.amount).eq(claimAmount);
+    });
+
     it('should allow beneficiary to claim all after vesting finished', async function () {
         await initializeDefault();
 
@@ -204,16 +219,35 @@ describe('InsidersVesting', function () {
         expect(await vesting.connect(user2).calculateClaim(user2.address)).be.equal(0);
     });
 
+    it('should emit TokensTransferred event on transfer', async function () {
+        await initializeDefault();
+        const lockedTokens = parseEther(1000);
+        const tx = await vesting.connect(user1).transfer(user4.address, lockedTokens, 0);
+        const receipt: ContractReceipt = await tx.wait();
+        const event: any = receipt.events?.find(x => x.event === 'TokensTransferred');
+        expect(event, 'TokensTransferred event wasn`t emitted').be.ok;
+        expect(event.args.from).eq(user1.address);
+        expect(event.args.to).eq(user4.address);
+        expect(event.args.amountLocked).eq(lockedTokens);
+        expect(event.args.amountUnlocked).eq(0);
+    });
+
     it('should transfer half of locked tokens to new beneficiary during lock-up', async function () {
         await initializeDefault();
         const lockedTokens = parseEther(1000);
-        await vesting.connect(user1).transfer(user4.address, lockedTokens, 0);
+        const tx = await vesting.connect(user1).transfer(user4.address, lockedTokens, 0);
+        const receipt: ContractReceipt = await tx.wait();
+        const event: any = receipt.events?.find(x => x.event === 'TokensTransferred');
+        expect(event, 'TokensTransferred event wasn`t emitted').be.ok;
+        expect(event.args.from).eq(user1.address);
+        expect(event.args.to).eq(user4.address);
+        expect(event.args.amountLocked).eq(lockedTokens);
+        expect(event.args.amountUnlocked).eq(0);
 
         const user1Record = await vesting.getBeneficiaryInfo(user1.address);
         const user4Record = await vesting.getBeneficiaryInfo(user4.address);
         expect(user1Record.tokensLocked).be.equal(lockedTokens);
         expect(user1Record.tokensPerSec).be.equal(user1Record.tokensLocked.div(DURATION));
-        expect(user1Record.tokensLockedTransferred).be.equal(lockedTokens);
         expect(user4Record.tokensLocked).be.equal(lockedTokens);
         expect(user4Record.tokensClaimed).be.equal(0);
         expect(user4Record.lastVestingUpdate).be.equal(LOCKUP_END);
@@ -227,7 +261,6 @@ describe('InsidersVesting', function () {
         const user1Record = await vesting.getBeneficiaryInfo(user1.address);
         const user2Record = await vesting.getBeneficiaryInfo(user2.address);
         expect(user1Record.tokensLocked).be.equal(lockedTokens);
-        expect(user1Record.tokensLockedTransferred).be.equal(lockedTokens);
         expect(user1Record.tokensPerSec).be.equal(user1Record.tokensLocked.div(DURATION));
         expect(user1Record.lastVestingUpdate).be.equal(LOCKUP_END);
         expect(user2Record.tokensLocked).be.equal(parseEther(4000));
@@ -266,8 +299,6 @@ describe('InsidersVesting', function () {
         const user1Record = await vesting.getBeneficiaryInfo(user1.address);
         const user4Record = await vesting.getBeneficiaryInfo(user4.address);
         expect(user1Record.tokensLocked).be.equal(user1RecordOld.tokensLocked.sub(lockedTokens).sub(user1Record.tokensUnlocked).sub(unlockedTokens));
-        expect(user1Record.tokensLockedTransferred).be.equal(lockedTokens);
-        expect(user1Record.tokensUnlockedTransferred).be.equal(unlockedTokens);
         expect(user1Record.tokensPerSec).be.equal(user1Record.tokensLocked.div(FINISH - timeshift - 1));
         expect(user4Record.tokensLocked).be.equal(lockedTokens);
         expect(user4Record.tokensUnlocked).be.equal(unlockedTokens);
@@ -313,8 +344,6 @@ describe('InsidersVesting', function () {
         expect(user1Record2.tokensLocked).be.equal(user1Record1.tokensLocked.sub(lockedTokens).sub(unlockedTokens).sub(user1Record2.tokensUnlocked));
         expect(user1Record2.tokensUnlocked).be.equal(user1Claim1.sub(unlockedTokens));
         expect(user1Record2.tokensPerSec).be.equal(user1Record2.tokensLocked.div(FINISH - timeshift - 1));
-        expect(user1Record2.tokensLockedTransferred).be.equal(lockedTokens);
-        expect(user1Record2.tokensUnlockedTransferred).be.equal(unlockedTokens);
         expect(user1Record2.lastVestingUpdate).be.equal(timeshift + 1);
         expect(user2Record2.tokensUnlocked).be.equal(user2Claim1.add(unlockedTokens));
         expect(user2Record2.tokensLocked).be.equal(user2Record1.tokensLocked.add(lockedTokens).sub(user2Record2.tokensUnlocked.sub(unlockedTokens)));
@@ -346,8 +375,6 @@ describe('InsidersVesting', function () {
         expect(user1Record2.tokensLocked).be.equal(0);
         expect(user1Record2.tokensUnlocked).be.equal(0);
         expect(user1Record2.tokensPerSec).be.equal(0);
-        expect(user1Record2.tokensLockedTransferred).be.equal(halfTokens);
-        expect(user1Record2.tokensUnlockedTransferred).be.equal(halfTokens);
         expect(user1Record2.lastVestingUpdate).be.equal(FINISH + 2);
         expect(user2Record2.tokensLocked).be.equal(0);
         expect(user2Record2.tokensUnlocked).be.equal(user2Record1.tokensLocked.add(user1Record1.tokensLocked));
@@ -359,15 +386,6 @@ describe('InsidersVesting', function () {
     it('should transfer unlocked to a new beneficiary after finish', async function () {
         await initializeDefault();
         const halfTokens = parseEther(1000);
-        const oneToken = parseEther(1);
-        const timeshift = LOCKUP_END + 99999;
-
-        // await network.provider.send('evm_setNextBlockTimestamp', [timeshift]);
-        // await network.provider.send('evm_mine');
-        // const user1Record1 = await vesting.getBeneficiaryInfo(user1.address);
-        // const user2Record1 = await vesting.getBeneficiaryInfo(user2.address);
-
-        // await vesting.connect(user1).transfer(user2.address, halfTokens, oneToken);
 
         await network.provider.send('evm_setNextBlockTimestamp', [FINISH]);
         await network.provider.send('evm_mine');
@@ -378,8 +396,6 @@ describe('InsidersVesting', function () {
         const user1Record2 = await vesting.getBeneficiaryInfo(user1.address);
         const user4Record2 = await vesting.getBeneficiaryInfo(user4.address);
         expect(user1Record2.tokensUnlocked).be.equal(halfTokens);
-        expect(user1Record2.tokensLockedTransferred).be.equal(0);
-        expect(user1Record2.tokensUnlockedTransferred).be.equal(halfTokens);
         expect(user4Record2.tokensLocked).be.equal(0);
         expect(user4Record2.tokensUnlocked).be.equal(halfTokens);
         expect(user4Record2.startTime).be.equal(FINISH + 2);
@@ -424,16 +440,12 @@ describe('InsidersVesting', function () {
         const user4Info = await vesting.getBeneficiaryInfo(user4.address);
         expect(user1Info.tokensLocked).be.equal(0);
         expect(user1Info.tokensUnlocked).be.equal(0);
-        expect(user1Info.tokensLockedTransferred).be.equal(user4Info.tokensLocked);
-        expect(user1Info.tokensUnlockedTransferred).be.equal(user4Info.tokensUnlocked);
         expect(user1Info.tokensPerSec).be.equal(0);
         expect(user1Info.lastVestingUpdate).be.equal(LOCKUP_END);
 
         expect(user4Info.startTime).be.equal(timeshift + 1);
         expect(user4Info.tokensLocked).be.equal(parseEther(2000));
         expect(user4Info.tokensUnlocked).be.equal(0);
-        expect(user4Info.tokensLockedTransferred).be.equal(0);
-        expect(user4Info.tokensUnlockedTransferred).be.equal(0);
         expect(user4Info.tokensPerSec).be.equal(user4Info.tokensLocked.div(DURATION));
         expect(user4Info.lastVestingUpdate).be.equal(LOCKUP_END);
     });
@@ -465,8 +477,6 @@ describe('InsidersVesting', function () {
         expect(user4Info.startTime).be.equal(timeshift + 1);
         expect(user4Info.tokensLocked).be.equal(user1Info.tokensLocked.sub(unlockedTokens));
         expect(user4Info.tokensUnlocked).be.equal(unlockedTokens);
-        expect(user4Info.tokensLockedTransferred).be.equal(0);
-        expect(user4Info.tokensUnlockedTransferred).be.equal(0);
         expect(user4Info.tokensPerSec).be.equal(user4Info.tokensLocked.div(FINISH - timeshift - 1));
         expect(user4Info.lastVestingUpdate).be.equal(timeshift + 1);
     });
@@ -488,8 +498,6 @@ describe('InsidersVesting', function () {
         expect(user2Info.startTime).be.equal(START);
         expect(user2Info.tokensLocked).be.equal(user2Locked.add(user1Locked));
         expect(user2Info.tokensUnlocked).be.equal(user2Unlocked.add(user1Unlocked));
-        expect(user2Info.tokensLockedTransferred).be.equal(0);
-        expect(user2Info.tokensUnlockedTransferred).be.equal(0);
         expect(user2Info.tokensPerSec).be.equal(user2Info.tokensLocked.div(FINISH - timeshift - 1));
         expect(user2Info.lastVestingUpdate).be.equal(timeshift + 1);
     });

@@ -46,13 +46,22 @@ export default {
         },
         rinkeby: {
             url: config.rinkebyUrl,
-            accounts: [config.privateKey],
+            accounts: [config.testPrivateKey],
         },
-        mainnet: {
-            url: '',
+        mumbai: {
+            url: config.mumbaiUrl,
+            accounts: [config.testPrivateKey],
+        },
+        ethereum: {
+            url: config.mumbaiUrl,
+            accounts: [config.privateKey],
         },
     },
     etherscan: {
-        apiKey: config.etherscanApiKey,
+        apiKey: {
+            mainnet: config.etherscanApiKey,
+            rinkeby: config.etherscanApiKey,
+            polygonMumbai: config.polygonscanApiKey,
+        },
     },
 };
