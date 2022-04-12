@@ -61,7 +61,8 @@ contract InsidersVesting {
         vestingFinish = _vestingStart + VESTING_LOCKUP_DURATION + VESTING_DURATION;
 
         for (uint96 i = 0; i < beneficiaries.length; i++) {
-            BeneficiaryInit memory b = beneficiaries[i]; 
+            BeneficiaryInit memory b = beneficiaries[i];
+            require(tokensLimitRemaining >= b.tokenAmount, "Tokens sum is greater than balance");
             tokensLimitRemaining -= b.tokenAmount;
             whitelist[b.account] = BeneficiaryInfo(_vestingStart, b.tokenAmount, 0, 0, b.tokenAmount / VESTING_DURATION, lockupEnd);
         }
@@ -95,11 +96,12 @@ contract InsidersVesting {
     function claim(address to, uint96 amount) external onlyFromWhitelist {
         require(block.timestamp > lockupEnd, "Cannot claim during 3 months lock-up period");
         address sender = msg.sender;
-        BeneficiaryInfo memory claimer = calculateClaimAndStage(sender);
+        calculateClaimAndStage(sender);
+        BeneficiaryInfo storage claimer = whitelist[sender];
         require(claimer.tokensUnlocked >= amount, "Requested more than unlocked");
 
-        whitelist[sender].tokensUnlocked -= amount;
-        whitelist[sender].tokensClaimed += amount;
+        claimer.tokensUnlocked -= amount;
+        claimer.tokensClaimed += amount;
         token.transfer(to, amount);
         emit TokensClaimed(sender, to, amount);
     }
@@ -144,14 +146,7 @@ contract InsidersVesting {
         sender.tokensUnlocked -= tokensUnlocked;
         sender.tokensPerSec = sender.tokensLocked / durationLeft;
         if (recipient.lastVestingUpdate == 0) {
-            whitelist[to] = BeneficiaryInfo(
-                timestamp,
-                tokensLocked,
-                tokensUnlocked,
-                0,
-                tokensLocked / durationLeft,
-                lastVestingUpdate
-            );
+            whitelist[to] = BeneficiaryInfo(timestamp, tokensLocked, tokensUnlocked, 0, tokensLocked / durationLeft, lastVestingUpdate);
         } else {
             calculateClaimAndStage(to);
             recipient.tokensLocked += tokensLocked;

@@ -7,7 +7,7 @@ import { SuperproToken, InsidersVesting } from '../typechain';
 interface BeneficiaryInit {
     account: string;
     tokenAmount: BigNumber;
-} 
+}
 
 describe('InsidersVesting', function () {
     let superproToken: SuperproToken;
@@ -55,9 +55,9 @@ describe('InsidersVesting', function () {
     async function initializeDefault() {
         const remaining = TOKENS_TOTAL.sub(parseEther(2000)).sub(parseEther(3000));
         const beneficiaries: BeneficiaryInit[] = [
-            {account: user1.address, tokenAmount: parseEther(2000)},
-            {account: user2.address, tokenAmount: parseEther(3000)},
-            {account: user3.address, tokenAmount: remaining}
+            { account: user1.address, tokenAmount: parseEther(2000) },
+            { account: user2.address, tokenAmount: parseEther(3000) },
+            { account: user3.address, tokenAmount: remaining },
         ];
         await superproToken.transfer(vesting.address, TOKENS_TOTAL);
         await vesting.initialize(superproToken.address, beneficiaries, START);
@@ -68,10 +68,10 @@ describe('InsidersVesting', function () {
         for (let i = 0; i < beneficiaries.length; i++) {
             beneficiaries[i] = {
                 account: user1.address,
-                tokenAmount: parseEther(2000000)
+                tokenAmount: parseEther(2000000),
             };
         }
-        
+
         await superproToken.transfer(vesting.address, TOKENS_TOTAL);
         await expect(vesting.initialize(superproToken.address, beneficiaries, START)).not.be.reverted;
     });
@@ -102,24 +102,24 @@ describe('InsidersVesting', function () {
     });
 
     it('should revert initialize when input params incorrect', async function () {
+        const timeInPast = Math.floor(Date.now() / 1000) - 10;
         await expect(vesting.initialize(superproToken.address, [], START)).be.revertedWith('No users');
-        let beneficiaries: BeneficiaryInit[] = [{account: user1.address, tokenAmount: BigNumber.from(1000) }];
+        let beneficiaries: BeneficiaryInit[] = [{ account: user1.address, tokenAmount: BigNumber.from(1000) }];
         await expect(vesting.initialize(superproToken.address, beneficiaries, START)).be.revertedWith('Zero token balance');
 
         await superproToken.transfer(vesting.address, TOKENS_TOTAL);
-        const timeInPast = Math.floor(Date.now() / 1000) - 3;
         await expect(vesting.initialize(superproToken.address, beneficiaries, timeInPast)).be.revertedWith('Start timestamp is in the past');
 
         beneficiaries = [
-            {account: user1.address, tokenAmount: parseEther(200000000)},
-            {account: user2.address, tokenAmount: parseEther(199999999)}
-        ]
+            { account: user1.address, tokenAmount: parseEther(200000000) },
+            { account: user2.address, tokenAmount: parseEther(199999999) },
+        ];
         await expect(vesting.initialize(superproToken.address, beneficiaries, START)).be.revertedWith('Not all tokens are distributed');
         beneficiaries = [
-            {account: user1.address, tokenAmount: parseEther(200000000)},
-            {account: user2.address, tokenAmount: parseEther(200000001)}
-        ]
-        await expect(vesting.initialize(superproToken.address, beneficiaries, START)).be.reverted;
+            { account: user1.address, tokenAmount: parseEther(200000000) },
+            { account: user2.address, tokenAmount: parseEther(200000001) },
+        ];
+        await expect(vesting.initialize(superproToken.address, beneficiaries, START)).be.revertedWith('Tokens sum is greater than balance');
     });
 
     it('should calculate claim 0 before lock-up end', async function () {
@@ -147,7 +147,7 @@ describe('InsidersVesting', function () {
 
         await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END + 999]);
         await network.provider.send('evm_mine');
-        await vesting.connect(user1).claim(user1.address, record.tokensPerSec.mul(1000))
+        await vesting.connect(user1).claim(user1.address, record.tokensPerSec.mul(1000));
 
         await network.provider.send('evm_setNextBlockTimestamp', [LOCKUP_END + 1998]);
         await network.provider.send('evm_mine');
@@ -181,6 +181,7 @@ describe('InsidersVesting', function () {
         const tx = await vesting.connect(user1).claim(user2.address, claimAmount);
         const receipt: ContractReceipt = await tx.wait();
         const event: any = receipt.events?.find(x => x.event === 'TokensClaimed');
+        /* eslint-disable no-unused-expressions */
         expect(event, 'TokensClaimed event wasn`t emitted').be.ok;
         expect(event.args.from).eq(user1.address);
         expect(event.args.to).eq(user2.address);
@@ -225,6 +226,7 @@ describe('InsidersVesting', function () {
         const tx = await vesting.connect(user1).transfer(user4.address, lockedTokens, 0);
         const receipt: ContractReceipt = await tx.wait();
         const event: any = receipt.events?.find(x => x.event === 'TokensTransferred');
+        /* eslint-disable no-unused-expressions */
         expect(event, 'TokensTransferred event wasn`t emitted').be.ok;
         expect(event.args.from).eq(user1.address);
         expect(event.args.to).eq(user4.address);
@@ -235,14 +237,7 @@ describe('InsidersVesting', function () {
     it('should transfer half of locked tokens to new beneficiary during lock-up', async function () {
         await initializeDefault();
         const lockedTokens = parseEther(1000);
-        const tx = await vesting.connect(user1).transfer(user4.address, lockedTokens, 0);
-        const receipt: ContractReceipt = await tx.wait();
-        const event: any = receipt.events?.find(x => x.event === 'TokensTransferred');
-        expect(event, 'TokensTransferred event wasn`t emitted').be.ok;
-        expect(event.args.from).eq(user1.address);
-        expect(event.args.to).eq(user4.address);
-        expect(event.args.amountLocked).eq(lockedTokens);
-        expect(event.args.amountUnlocked).eq(0);
+        await vesting.connect(user1).transfer(user4.address, lockedTokens, 0);
 
         const user1Record = await vesting.getBeneficiaryInfo(user1.address);
         const user4Record = await vesting.getBeneficiaryInfo(user4.address);
@@ -390,7 +385,9 @@ describe('InsidersVesting', function () {
         await network.provider.send('evm_setNextBlockTimestamp', [FINISH]);
         await network.provider.send('evm_mine');
 
-        await expect(vesting.connect(user1).transfer(user4.address, 0, parseEther(2000).add(1))).be.revertedWith('Requested more tokens than unlocked');
+        await expect(vesting.connect(user1).transfer(user4.address, 0, parseEther(2000).add(1))).be.revertedWith(
+            'Requested more tokens than unlocked'
+        );
         await vesting.connect(user1).transfer(user4.address, 0, halfTokens);
 
         const user1Record2 = await vesting.getBeneficiaryInfo(user1.address);
