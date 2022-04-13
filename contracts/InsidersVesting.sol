@@ -8,17 +8,18 @@ struct BeneficiaryInit {
     uint96 tokenAmount;
 }
 
+struct BeneficiaryInfo {
+    uint64 startTime;
+    uint96 tokensLocked;
+    uint96 tokensUnlocked;
+    uint96 tokensClaimed;
+    // amount of tokens unlocked per second
+    uint96 tokensPerSec;
+    // date of pulling unlocked tokens from locked (transfer, claim)
+    uint64 lastVestingUpdate;
+}
+
 contract InsidersVesting {
-    struct BeneficiaryInfo {
-        uint64 startTime;
-        uint96 tokensLocked;
-        uint96 tokensUnlocked;
-        uint96 tokensClaimed;
-        // amount of tokens unlocked per second
-        uint96 tokensPerSec;
-        // date of pulling unlocked tokens from locked (transfer, claim)
-        uint64 lastVestingUpdate;
-    }
     mapping(address => BeneficiaryInfo) private whitelist;
     address public immutable owner;
     bool public initialized;
@@ -38,9 +39,34 @@ contract InsidersVesting {
         owner = _owner;
     }
 
-    modifier onlyFromWhitelist() {
-        require(whitelist[msg.sender].lastVestingUpdate > 0, "You are not in whitelist");
-        _;
+    // pass only existing beneficiary
+    function _calculateClaimAndStage(address beneficiary) private returns (BeneficiaryInfo memory) {
+        BeneficiaryInfo storage info = whitelist[beneficiary];
+        if (block.timestamp > lockupEnd) {
+            uint96 unlocked = _calculateClaim(info);
+            info.tokensUnlocked += unlocked;
+            info.tokensLocked -= unlocked;
+            info.lastVestingUpdate = uint64(block.timestamp);
+        }
+        return info;
+    }
+
+    function _calculateClaim(BeneficiaryInfo memory info) private view returns (uint96) {
+        if (block.timestamp < info.lastVestingUpdate) {
+            return 0;
+        }
+        if (block.timestamp < vestingFinish) {
+            return (uint64(block.timestamp) - info.lastVestingUpdate) * info.tokensPerSec;
+        }
+        return info.tokensLocked;
+    }
+
+    function getBeneficiaryInfo(address beneficiary) public view returns (BeneficiaryInfo memory) {
+        if (whitelist[beneficiary].lastVestingUpdate > 0) {
+            return whitelist[beneficiary];
+        } else {
+            revert("Account is not in whitelist");
+        }
     }
 
     function initialize(
@@ -69,34 +95,16 @@ contract InsidersVesting {
         require(tokensLimitRemaining == 0, "Not all tokens are distributed");
     }
 
-    function getBeneficiaryInfo(address beneficiary) public view returns (BeneficiaryInfo memory) {
-        if (whitelist[beneficiary].lastVestingUpdate > 0) {
-            return whitelist[beneficiary];
-        } else {
-            revert("Account is not in whitelist");
-        }
-    }
-
     function calculateClaim(address beneficiary) external view returns (uint96) {
         BeneficiaryInfo memory info = getBeneficiaryInfo(beneficiary);
 
         return _calculateClaim(info) + info.tokensUnlocked;
     }
 
-    function _calculateClaim(BeneficiaryInfo memory info) private view returns (uint96) {
-        if (block.timestamp < info.lastVestingUpdate) {
-            return 0;
-        }
-        if (block.timestamp < vestingFinish) {
-            return (uint64(block.timestamp) - info.lastVestingUpdate) * info.tokensPerSec;
-        }
-        return info.tokensLocked;
-    }
-
     function claim(address to, uint96 amount) external onlyFromWhitelist {
         require(block.timestamp > lockupEnd, "Cannot claim during 3 months lock-up period");
         address sender = msg.sender;
-        calculateClaimAndStage(sender);
+        _calculateClaimAndStage(sender);
         BeneficiaryInfo storage claimer = whitelist[sender];
         require(claimer.tokensUnlocked >= amount, "Requested more than unlocked");
 
@@ -111,14 +119,14 @@ contract InsidersVesting {
         uint96 tokensLocked,
         uint96 tokensUnlocked
     ) external onlyFromWhitelist {
-        BeneficiaryInfo memory sender = calculateClaimAndStage(msg.sender);
+        BeneficiaryInfo memory sender = _calculateClaimAndStage(msg.sender);
         require(sender.tokensLocked >= tokensLocked, "Requested more tokens than locked");
         require(sender.tokensUnlocked >= tokensUnlocked, "Requested more tokens than unlocked");
         _transfer(to, tokensLocked, tokensUnlocked);
     }
 
     function transferAll(address to) external onlyFromWhitelist {
-        BeneficiaryInfo memory sender = calculateClaimAndStage(msg.sender);
+        BeneficiaryInfo memory sender = _calculateClaimAndStage(msg.sender);
         _transfer(to, sender.tokensLocked, sender.tokensUnlocked);
     }
 
@@ -148,7 +156,7 @@ contract InsidersVesting {
         if (recipient.lastVestingUpdate == 0) {
             whitelist[to] = BeneficiaryInfo(timestamp, tokensLocked, tokensUnlocked, 0, tokensLocked / durationLeft, lastVestingUpdate);
         } else {
-            calculateClaimAndStage(to);
+            _calculateClaimAndStage(to);
             recipient.tokensLocked += tokensLocked;
             recipient.tokensUnlocked += tokensUnlocked;
             recipient.tokensPerSec = recipient.tokensLocked / durationLeft;
@@ -156,15 +164,8 @@ contract InsidersVesting {
         emit TokensTransferred(msg.sender, to, tokensLocked, tokensUnlocked);
     }
 
-    // pass only existing beneficiary
-    function calculateClaimAndStage(address beneficiary) private returns (BeneficiaryInfo memory) {
-        BeneficiaryInfo storage info = whitelist[beneficiary];
-        if (block.timestamp > lockupEnd) {
-            uint96 unlocked = _calculateClaim(info);
-            info.tokensUnlocked += unlocked;
-            info.tokensLocked -= unlocked;
-            info.lastVestingUpdate = uint64(block.timestamp);
-        }
-        return info;
+    modifier onlyFromWhitelist() {
+        require(whitelist[msg.sender].lastVestingUpdate > 0, "You are not in whitelist");
+        _;
     }
 }

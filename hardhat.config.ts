@@ -44,16 +44,12 @@ export default {
                 count: 10,
             },
         },
-        rinkeby: {
-            url: config.rinkebyUrl,
-            accounts: [config.testPrivateKey],
-        },
         mumbai: {
             url: config.mumbaiUrl,
             accounts: [config.testPrivateKey],
         },
         ethereum: {
-            url: config.mumbaiUrl,
+            url: config.mainnetUrl,
             accounts: [config.privateKey],
         },
     },

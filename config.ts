@@ -3,7 +3,6 @@ import path from 'path';
 dotenv.config({ path: path.join(__dirname, '/.env') });
 
 export const config = {
-    rinkebyUrl: process.env.RINKEBY_URL,
     mumbaiUrl: process.env.MUMBAI_URL,
     mainnetUrl: process.env.MAINNET_URL,
     testPrivateKey: process.env.TEST_PRIVATE_KEY,
