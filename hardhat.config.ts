@@ -1,6 +1,8 @@
 import '@nomiclabs/hardhat-waffle';
+import '@nomiclabs/hardhat-etherscan';
 import '@typechain/hardhat';
 import 'hardhat-gas-reporter';
+import 'hardhat-contract-sizer';
 import 'solidity-coverage';
 import { utils } from 'ethers';
 import { config } from './config';
@@ -25,11 +27,6 @@ export default {
         enabled: true,
         currency: 'USD',
     },
-    diamondPreprocessor: {
-        disabled: false,
-        ignoreFuncs: false,
-        ignoreStructs: false,
-    },
     mocha: {
         timeout: 0,
         bail: true,
@@ -47,18 +44,20 @@ export default {
                 count: 10,
             },
         },
-        local: {
-            url: 'http://localhost:8545',
-            account: config.localhostDeployerPrivateKey,
-        },
         mumbai: {
-            // https://docs.matic.network/docs/develop/network-details/network/
-            chainId: 80001,
-            url: 'https://matic-mumbai.chainstacklabs.com',
-            accounts: [config.mumbaiDeployerPrivateKey],
+            url: config.mumbaiUrl,
+            accounts: [config.testPrivateKey],
         },
-        mainnet: {
-            url: '',
+        ethereum: {
+            url: config.mainnetUrl,
+            accounts: [config.privateKey],
+        },
+    },
+    etherscan: {
+        apiKey: {
+            mainnet: config.etherscanApiKey,
+            rinkeby: config.etherscanApiKey,
+            polygonMumbai: config.polygonscanApiKey,
         },
     },
 };

@@ -3,6 +3,10 @@ import path from 'path';
 dotenv.config({ path: path.join(__dirname, '/.env') });
 
 export const config = {
-    mumbaiDeployerPrivateKey: process.env.MUMBAI_DEPLOYER_PRIVATE_KEY,
-    localhostDeployerPrivateKey: process.env.LOCALHOST_DEPLOYER_PRIVATE_KEY,
+    mumbaiUrl: process.env.MUMBAI_URL,
+    mainnetUrl: process.env.MAINNET_URL,
+    testPrivateKey: process.env.TEST_PRIVATE_KEY,
+    privateKey: process.env.PRIVATE_KEY,
+    etherscanApiKey: process.env.ETHERSCAN_API_KEY,
+    polygonscanApiKey: process.env.POLYGONSCAN_API_KEY,
 };
