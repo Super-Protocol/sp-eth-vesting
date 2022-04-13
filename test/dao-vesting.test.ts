@@ -70,11 +70,11 @@ describe('DAOVesting', function () {
 
         await network.provider.send('evm_setNextBlockTimestamp', [START + 999]);
         await network.provider.send('evm_mine');
-        await vesting.connect(admin).claim(tokensPerSec.mul(1000));
+        await vesting.connect(admin).claim(admin.address, tokensPerSec.mul(1000));
 
         await network.provider.send('evm_setNextBlockTimestamp', [START + 1998]);
         await network.provider.send('evm_mine');
-        await expect(vesting.connect(admin).claim(tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
+        await expect(vesting.connect(admin).claim(admin.address, tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
     });
 
     it('should allow beneficiary to claim all after vesting finished', async function () {
@@ -83,7 +83,7 @@ describe('DAOVesting', function () {
         await network.provider.send('evm_setNextBlockTimestamp', [FINISH]);
         await network.provider.send('evm_mine');
 
-        await vesting.connect(admin).claim(TOTAL_TOKENS);
+        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS);
         expect(await vesting.tokensLocked()).be.equal(0);
         expect(await vesting.tokensClaimed()).be.equal(TOTAL_TOKENS);
         expect(await superproToken.balanceOf(admin.address)).be.equal(TOTAL_TOKENS);
@@ -95,22 +95,22 @@ describe('DAOVesting', function () {
         await network.provider.send('evm_setNextBlockTimestamp', [START + oneForthDuration]);
         await network.provider.send('evm_mine');
 
-        await vesting.connect(admin).claim(TOTAL_TOKENS.div(4));
+        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
 
         await network.provider.send('evm_setNextBlockTimestamp', [START + oneForthDuration * 2]);
         await network.provider.send('evm_mine');
 
-        await vesting.connect(admin).claim(TOTAL_TOKENS.div(4));
+        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
 
         await network.provider.send('evm_setNextBlockTimestamp', [START + oneForthDuration * 3]);
         await network.provider.send('evm_mine');
 
-        await vesting.connect(admin).claim(TOTAL_TOKENS.div(4));
+        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
 
         await network.provider.send('evm_setNextBlockTimestamp', [START + DURATION]);
         await network.provider.send('evm_mine');
 
-        await vesting.connect(admin).claim(TOTAL_TOKENS.div(4));
+        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
     });
 
     it('should transfer authority to another account', async function () {

@@ -14,7 +14,7 @@ abstract contract Vesting {
     uint64 public vestingFinish;
     IERC20 public token;
 
-    event TokensClaimed(uint256 amount);
+    event TokensClaimed(address indexed from, address indexed to, uint256 amount);
 
     function vestingDuration() public pure virtual returns (uint64);
 
@@ -35,14 +35,14 @@ abstract contract Vesting {
         return tokensLocked;
     }
 
-    function claim(uint96 amount) external onlyAdmin {
+    function claim(address to, uint96 amount) external onlyAdmin {
         uint96 unlocked = calculateClaim();
         require(unlocked >= amount, "Requested more than unlocked");
         tokensLocked -= amount;
         tokensClaimed += amount;
 
-        token.transfer(msg.sender, amount);
-        emit TokensClaimed(amount);
+        token.transfer(to, amount);
+        emit TokensClaimed(msg.sender, to, amount);
     }
 
     function transferAuthority(address to) external onlyAdmin {
