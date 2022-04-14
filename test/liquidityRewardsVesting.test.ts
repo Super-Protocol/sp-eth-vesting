@@ -8,9 +8,10 @@ describe('LiquidityRewardsVesting', function () {
     let vesting: LiquidityRewardsVesting;
     let deployer: SignerWithAddress, admin: SignerWithAddress, impostor: SignerWithAddress, dao: SignerWithAddress;
 
+    const oneDay = 86400;
+    const START = Math.floor(Date.now() / 1000) + oneDay;
     const DURATION = 71107200;
-    const START = 1654041600;
-    const FINISH = 1725148800;
+    const FINISH = START + DURATION;
     const TOTAL_TOKENS = parseEther(90_000_000);
 
     let snapshot: any;
@@ -124,8 +125,8 @@ describe('LiquidityRewardsVesting', function () {
     it('should set DAO address as admin', async function () {
         await initializeDefault();
 
-        await expect(vesting.connect(deployer).setDAOAddress(deployer.address)).be.revertedWith('Not allowed');
-        await vesting.connect(admin).setDAOAddress(dao.address);
-        expect(await vesting.DAO()).be.equal(dao.address);
+        await expect(vesting.connect(deployer).setDaoAddress(deployer.address)).be.revertedWith('Not allowed');
+        await vesting.connect(admin).setDaoAddress(dao.address);
+        expect(await vesting.Dao()).be.equal(dao.address);
     });
 });

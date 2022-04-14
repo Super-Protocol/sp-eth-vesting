@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 import "./Vesting.sol";
 
-contract DAOVesting is Vesting {
+contract DaoVesting is Vesting {
     constructor(address _owner) {
         owner = _owner;
     }

@@ -5,7 +5,7 @@ import "./openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 abstract contract Vesting {
     address public owner;
-    address public DAO;
+    address public Dao;
     bool initialized;
     uint96 public tokensLocked;
     uint96 public tokensPerSec;
@@ -49,12 +49,12 @@ abstract contract Vesting {
         owner = to;
     }
 
-    function setDAOAddress(address dao) external onlyAdmin {
-        DAO = dao;
+    function setDaoAddress(address dao) external onlyAdmin {
+        Dao = dao;
     }
 
     modifier onlyAdmin() {
-        require(msg.sender == owner || msg.sender == DAO, "Not allowed");
+        require(msg.sender == owner || msg.sender == Dao, "Not allowed");
         _;
     }
 }

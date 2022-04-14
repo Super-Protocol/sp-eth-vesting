@@ -14,7 +14,8 @@ describe('InsidersVesting', function () {
     let vesting: InsidersVesting;
     let owner: SignerWithAddress, user1: SignerWithAddress, user2: SignerWithAddress, user3: SignerWithAddress, user4: SignerWithAddress;
 
-    const START = 1654041600;
+    const oneDay = 86400;
+    const START = Math.floor(Date.now() / 1000) + oneDay;
     const LOCKUP_END = START + 7776000;
     const DURATION = 86745600;
     const FINISH = LOCKUP_END + DURATION;

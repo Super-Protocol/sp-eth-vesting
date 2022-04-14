@@ -1,16 +1,17 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers, network } from 'hardhat';
-import { SuperproToken, DAOVesting } from '../typechain';
+import { SuperproToken, DaoVesting } from '../typechain';
 
-describe('DAOVesting', function () {
+describe('DaoVesting', function () {
     let superproToken: SuperproToken;
-    let vesting: DAOVesting;
+    let vesting: DaoVesting;
     let deployer: SignerWithAddress, admin: SignerWithAddress, impostor: SignerWithAddress, dao: SignerWithAddress;
 
+    const oneDay = 86400;
+    const START = Math.floor(Date.now() / 1000) + oneDay;
     const DURATION = 94694400;
-    const START = 1654041600;
-    const FINISH = 1748736000;
+    const FINISH = START + DURATION;
     const TOTAL_TOKENS = parseEther(190_000_000);
 
     let snapshot: any;
@@ -20,7 +21,7 @@ describe('DAOVesting', function () {
         const SuperproTokenFactory = await ethers.getContractFactory('SuperproToken');
         superproToken = await SuperproTokenFactory.deploy(TOTAL_TOKENS, 'SPT', 'Superpro Test Token');
         await superproToken.deployed();
-        const Vesting = await ethers.getContractFactory('DAOVesting');
+        const Vesting = await ethers.getContractFactory('DaoVesting');
 
         vesting = await Vesting.deploy(admin.address);
         await vesting.deployed();
@@ -124,8 +125,8 @@ describe('DAOVesting', function () {
     it('should set DAO address as admin', async function () {
         await initializeDefault();
 
-        await expect(vesting.connect(deployer).setDAOAddress(deployer.address)).be.revertedWith('Not allowed');
-        await vesting.connect(admin).setDAOAddress(dao.address);
-        expect(await vesting.DAO()).be.equal(dao.address);
+        await expect(vesting.connect(deployer).setDaoAddress(deployer.address)).be.revertedWith('Not allowed');
+        await vesting.connect(admin).setDaoAddress(dao.address);
+        expect(await vesting.Dao()).be.equal(dao.address);
     });
 });
