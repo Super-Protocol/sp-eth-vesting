@@ -8,22 +8,22 @@ describe('LiquidityRewardsVesting', function () {
     let vesting: LiquidityRewardsVesting;
     let deployer: SignerWithAddress, admin: SignerWithAddress, impostor: SignerWithAddress, dao: SignerWithAddress;
 
-    const oneDay = 86400;
-    const START = Math.floor(Date.now() / 1000) + oneDay;
-    const DURATION = 71107200;
-    const FINISH = START + DURATION;
+    const ONE_DAY = 86400;
+    const VESTING_START = Math.floor(Date.now() / 1000) + ONE_DAY;
+    const VESTING_DURATION = 71107200;
+    const VESTING_FINISH = VESTING_START + VESTING_DURATION;
     const TOTAL_TOKENS = parseEther(90_000_000);
 
     let snapshot: any;
 
     before(async function () {
         [deployer, admin, impostor, dao] = await ethers.getSigners();
-        const SuperproTokenFactory = await ethers.getContractFactory('SuperproToken');
-        superproToken = await SuperproTokenFactory.deploy(TOTAL_TOKENS, 'SPT', 'Superpro Test Token');
+        const superproTokenFactory = await ethers.getContractFactory('SuperproToken');
+        superproToken = await superproTokenFactory.deploy(TOTAL_TOKENS, 'SPT', 'Superpro Test Token');
         await superproToken.deployed();
-        const Vesting = await ethers.getContractFactory('LiquidityRewardsVesting');
+        const vestingFactory = await ethers.getContractFactory('LiquidityRewardsVesting');
 
-        vesting = await Vesting.deploy(admin.address);
+        vesting = await vestingFactory.deploy(admin.address);
         await vesting.deployed();
         snapshot = await network.provider.request({
             method: 'evm_snapshot',
@@ -47,21 +47,30 @@ describe('LiquidityRewardsVesting', function () {
         return ethers.utils.parseEther(amount.toString());
     }
 
-    async function initializeDefault() {
-        await superproToken.transfer(vesting.address, TOTAL_TOKENS);
-        await vesting.connect(admin).initialize(superproToken.address, START);
+    async function setNextTimestamp(timestamp: number) {
+        await network.provider.send('evm_setNextBlockTimestamp', [timestamp]);
+        await network.provider.send('evm_mine');
     }
 
-    it('should initialize correctly', async function () {
+    async function initializeDefault() {
+        await superproToken.transfer(vesting.address, TOTAL_TOKENS);
+        await vesting.connect(admin).initialize(superproToken.address, VESTING_START);
+    }
+
+    it('should set owner and token addresses on initialize', async function () {
         await initializeDefault();
 
         expect(await vesting.owner()).be.equal(admin.address);
         expect(await vesting.token()).be.equal(superproToken.address);
-        await expect(vesting.connect(admin).initialize(superproToken.address, START)).be.revertedWith('Already initialized');
+    });
+
+    it('should forbid to initialize more than once', async function () {
+        await initializeDefault();
+        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START)).be.revertedWith('Already initialized');
     });
 
     it('should revert initialize if sender is not the owner', async function () {
-        await expect(vesting.connect(impostor).initialize(superproToken.address, START)).be.revertedWith('Not allowed');
+        await expect(vesting.connect(impostor).initialize(superproToken.address, VESTING_START)).be.revertedWith('Not allowed');
     });
 
     it('should forbid to claim if requested more than unlocked', async function () {
@@ -69,20 +78,17 @@ describe('LiquidityRewardsVesting', function () {
         const tokensPerSec = await vesting.tokensPerSec();
         await expect(vesting.connect(admin).calculateClaim()).be.reverted;
 
-        await network.provider.send('evm_setNextBlockTimestamp', [START + 999]);
-        await network.provider.send('evm_mine');
+        setNextTimestamp(VESTING_START + 999);
         await vesting.connect(admin).claim(admin.address, tokensPerSec.mul(1000));
 
-        await network.provider.send('evm_setNextBlockTimestamp', [START + 1998]);
-        await network.provider.send('evm_mine');
+        setNextTimestamp(VESTING_START + 1998);
         await expect(vesting.connect(admin).claim(admin.address, tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
     });
 
     it('should allow beneficiary to claim all after vesting finished', async function () {
         await initializeDefault();
 
-        await network.provider.send('evm_setNextBlockTimestamp', [FINISH]);
-        await network.provider.send('evm_mine');
+        setNextTimestamp(VESTING_FINISH);
 
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS);
         expect(await vesting.tokensLocked()).be.equal(0);
@@ -90,27 +96,20 @@ describe('LiquidityRewardsVesting', function () {
         expect(await superproToken.balanceOf(admin.address)).be.equal(TOTAL_TOKENS);
     });
 
-    it('should claim 3 times till the end', async function () {
+    it('should claim 4 times till the end', async function () {
         await initializeDefault();
-        const oneForthDuration = DURATION / 4;
-        await network.provider.send('evm_setNextBlockTimestamp', [START + oneForthDuration]);
-        await network.provider.send('evm_mine');
+        const oneForthDuration = VESTING_DURATION / 4;
 
+        setNextTimestamp(VESTING_START + oneForthDuration);
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
 
-        await network.provider.send('evm_setNextBlockTimestamp', [START + oneForthDuration * 2]);
-        await network.provider.send('evm_mine');
-
+        setNextTimestamp(VESTING_START + oneForthDuration * 2);
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
 
-        await network.provider.send('evm_setNextBlockTimestamp', [START + oneForthDuration * 3]);
-        await network.provider.send('evm_mine');
-
+        setNextTimestamp(VESTING_START + oneForthDuration * 3);
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
 
-        await network.provider.send('evm_setNextBlockTimestamp', [START + DURATION]);
-        await network.provider.send('evm_mine');
-
+        setNextTimestamp(VESTING_START + VESTING_DURATION);
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
     });
 
@@ -127,6 +126,6 @@ describe('LiquidityRewardsVesting', function () {
 
         await expect(vesting.connect(deployer).setDaoAddress(deployer.address)).be.revertedWith('Not allowed');
         await vesting.connect(admin).setDaoAddress(dao.address);
-        expect(await vesting.Dao()).be.equal(dao.address);
+        expect(await vesting.dao()).be.equal(dao.address);
     });
 });

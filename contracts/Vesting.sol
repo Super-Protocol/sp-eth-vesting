@@ -5,7 +5,7 @@ import "./openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 abstract contract Vesting {
     address public owner;
-    address public Dao;
+    address public dao;
     bool initialized;
     uint96 public tokensLocked;
     uint96 public tokensPerSec;
@@ -18,7 +18,7 @@ abstract contract Vesting {
 
     function vestingDuration() public pure virtual returns (uint64);
 
-    function initialize(address _token, uint64 _vestingStart) external onlyAdmin {
+    function initialize(address _token, uint64 _vestingStart) external onlyOwnerOrDao {
         require(!initialized, "Already initialized");
         initialized = true;
         vestingStart = _vestingStart;
@@ -35,9 +35,10 @@ abstract contract Vesting {
         return tokensLocked;
     }
 
-    function claim(address to, uint96 amount) external onlyAdmin {
+    function claim(address to, uint96 amount) external onlyOwnerOrDao {
         uint96 unlocked = calculateClaim();
         require(unlocked >= amount, "Requested more than unlocked");
+        require(tokensLocked >= amount, "Calculated more tokens than available");
         tokensLocked -= amount;
         tokensClaimed += amount;
 
@@ -45,16 +46,16 @@ abstract contract Vesting {
         emit TokensClaimed(msg.sender, to, amount);
     }
 
-    function transferAuthority(address to) external onlyAdmin {
-        owner = to;
+    function transferAuthority(address newOwner) external onlyOwnerOrDao {
+        owner = newOwner;
     }
 
-    function setDaoAddress(address dao) external onlyAdmin {
-        Dao = dao;
+    function setDaoAddress(address newDao) external onlyOwnerOrDao {
+        dao = newDao;
     }
 
-    modifier onlyAdmin() {
-        require(msg.sender == owner || msg.sender == Dao, "Not allowed");
+    modifier onlyOwnerOrDao() {
+        require(msg.sender == owner || msg.sender == dao, "Not allowed");
         _;
     }
 }
