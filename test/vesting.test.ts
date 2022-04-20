@@ -1,18 +1,18 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers, network } from 'hardhat';
-import { SuperproToken, LiquidityRewardsVesting } from '../typechain';
+import { SuperproToken, Vesting } from '../typechain';
 
-describe('LiquidityRewardsVesting', function () {
+describe('Vesting', function () {
     let superproToken: SuperproToken;
-    let vesting: LiquidityRewardsVesting;
+    let vesting: Vesting;
     let deployer: SignerWithAddress, admin: SignerWithAddress, impostor: SignerWithAddress, dao: SignerWithAddress;
 
     const ONE_DAY = 86400;
     const VESTING_START = Math.floor(Date.now() / 1000) + ONE_DAY;
-    const VESTING_DURATION = 71107200;
+    const VESTING_DURATION = 94694400;
     const VESTING_FINISH = VESTING_START + VESTING_DURATION;
-    const TOTAL_TOKENS = parseEther(90_000_000);
+    const TOTAL_TOKENS = parseEther(190_000_000);
 
     let snapshot: any;
 
@@ -21,8 +21,8 @@ describe('LiquidityRewardsVesting', function () {
         const superproTokenFactory = await ethers.getContractFactory('SuperproToken');
         superproToken = await superproTokenFactory.deploy(TOTAL_TOKENS, 'SPT', 'Superpro Test Token');
         await superproToken.deployed();
-        const vestingFactory = await ethers.getContractFactory('LiquidityRewardsVesting');
 
+        const vestingFactory = await ethers.getContractFactory('Vesting');
         vesting = await vestingFactory.deploy(admin.address);
         await vesting.deployed();
         snapshot = await network.provider.request({
@@ -54,7 +54,7 @@ describe('LiquidityRewardsVesting', function () {
 
     async function initializeDefault() {
         await superproToken.transfer(vesting.address, TOTAL_TOKENS);
-        await vesting.connect(admin).initialize(superproToken.address, VESTING_START);
+        await vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_FINISH);
     }
 
     it('should set owner and token addresses on initialize', async function () {
@@ -66,11 +66,17 @@ describe('LiquidityRewardsVesting', function () {
 
     it('should forbid to initialize more than once', async function () {
         await initializeDefault();
-        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START)).be.revertedWith('Already initialized');
+        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_FINISH)).be.revertedWith('Already initialized');
+    });
+
+    it('should revert initialize if dates are not correct', async function () {
+        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_START)).be.revertedWith('Lock finish should be later than start');
+        setNextTimestamp(VESTING_START);
+        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_FINISH)).be.revertedWith('Lock start should be in the future');
     });
 
     it('should revert initialize if sender is not the owner', async function () {
-        await expect(vesting.connect(impostor).initialize(superproToken.address, VESTING_START)).be.revertedWith('Not allowed');
+        await expect(vesting.connect(impostor).initialize(superproToken.address, VESTING_START, VESTING_FINISH)).be.revertedWith('Not allowed');
     });
 
     it('should forbid to claim if requested more than unlocked', async function () {

@@ -3,10 +3,10 @@ pragma solidity ^0.8.9;
 
 import "./openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-abstract contract Vesting {
+contract Vesting {
     address public owner;
     address public dao;
-    bool initialized;
+    bool public initialized;
     uint96 public tokensLocked;
     uint96 public tokensPerSec;
     uint96 public tokensClaimed;
@@ -16,16 +16,20 @@ abstract contract Vesting {
 
     event TokensClaimed(address indexed from, address indexed to, uint256 amount);
 
-    function vestingDuration() public pure virtual returns (uint64);
+    constructor(address _owner) {
+        owner = _owner;
+    }
 
-    function initialize(address _token, uint64 _vestingStart) external onlyOwnerOrDao {
+    function initialize(address _token, uint64 _vestingStart, uint64 _vestingFinish) external onlyOwnerOrDao {
         require(!initialized, "Already initialized");
+        require(_vestingStart > block.timestamp, "Lock start should be in the future");
+        require(_vestingFinish > _vestingStart, "Lock finish should be later than start");
         initialized = true;
         vestingStart = _vestingStart;
-        vestingFinish = vestingStart + vestingDuration();
+        vestingFinish = _vestingFinish;
         token = IERC20(_token);
         tokensLocked = uint96(token.balanceOf(address(this)));
-        tokensPerSec = tokensLocked / vestingDuration();
+        tokensPerSec = tokensLocked / (vestingFinish - vestingStart);
     }
 
     function calculateClaim() public view returns (uint96) {
@@ -38,7 +42,6 @@ abstract contract Vesting {
     function claim(address to, uint96 amount) external onlyOwnerOrDao {
         uint96 unlocked = calculateClaim();
         require(unlocked >= amount, "Requested more than unlocked");
-        require(tokensLocked >= amount, "Calculated more tokens than available");
         tokensLocked -= amount;
         tokensClaimed += amount;
 
