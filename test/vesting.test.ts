@@ -70,9 +70,13 @@ describe('Vesting', function () {
     });
 
     it('should revert initialize if dates are not correct', async function () {
-        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_START)).be.revertedWith('Lock finish should be later than start');
+        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_START)).be.revertedWith(
+            'Lock finish should be later than start'
+        );
         setNextTimestamp(VESTING_START);
-        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_FINISH)).be.revertedWith('Lock start should be in the future');
+        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_FINISH)).be.revertedWith(
+            'Lock start should be in the future'
+        );
     });
 
     it('should revert initialize if sender is not the owner', async function () {
