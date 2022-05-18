@@ -2,8 +2,11 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract Vesting {
+    using SafeERC20 for IERC20;
+
     address public owner;
     address public dao;
     bool public initialized;
@@ -20,7 +23,11 @@ contract Vesting {
         owner = _owner;
     }
 
-    function initialize(address _token, uint64 _vestingStart, uint64 _vestingFinish) external onlyOwnerOrDao {
+    function initialize(
+        address _token,
+        uint64 _vestingStart,
+        uint64 _vestingFinish
+    ) external onlyOwnerOrDao {
         require(!initialized, "Already initialized");
         require(_vestingStart > block.timestamp, "Lock start should be in the future");
         require(_vestingFinish > _vestingStart, "Lock finish should be later than start");
@@ -45,7 +52,7 @@ contract Vesting {
         tokensLocked -= amount;
         tokensClaimed += amount;
 
-        token.transfer(to, amount);
+        token.safeTransfer(to, amount);
         emit TokensClaimed(msg.sender, to, amount);
     }
 
