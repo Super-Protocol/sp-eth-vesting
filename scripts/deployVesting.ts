@@ -1,12 +1,12 @@
 import { ethers } from 'hardhat';
 
 async function main() {
-    if (!process.env.ADMIN_MULTISIG) {
-        throw new Error('ADMIN_MULTISIG is not provided');
+    if (!process.env.INITIALIZER) {
+        throw new Error('INITIALIZER is not provided');
     }
 
-    const Vesting = await ethers.getContractFactory('InsidersVesting');
-    const vesting = await Vesting.deploy(process.env.ADMIN_MULTISIG);
+    const Vesting = await ethers.getContractFactory('Vesting');
+    const vesting = await Vesting.deploy(process.env.INITIALIZER);
     await vesting.deployed();
 
     console.log('Vesting deployed to:', vesting.address);

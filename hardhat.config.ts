@@ -48,6 +48,11 @@ export default {
             url: config.mumbaiUrl,
             accounts: [config.testPrivateKey],
         },
+        // FIXME:
+        polygon: {
+            url: config.mumbaiUrl,
+            accounts: [config.testPrivateKey],
+        },
         ethereum: {
             url: config.mainnetUrl,
             accounts: [config.privateKey],
@@ -57,6 +62,7 @@ export default {
         apiKey: {
             mainnet: config.etherscanApiKey,
             rinkeby: config.etherscanApiKey,
+            polygon: config.polygonscanApiKey,
             polygonMumbai: config.polygonscanApiKey,
         },
     },
