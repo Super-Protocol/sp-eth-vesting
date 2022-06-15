@@ -48,11 +48,6 @@ export default {
             url: config.mumbaiUrl,
             accounts: [config.testPrivateKey],
         },
-        // FIXME:
-        polygon: {
-            url: config.mumbaiUrl,
-            accounts: [config.testPrivateKey],
-        },
         ethereum: {
             url: config.mainnetUrl,
             accounts: [config.privateKey],
