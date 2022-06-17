@@ -57,6 +57,7 @@ export default {
         apiKey: {
             mainnet: config.etherscanApiKey,
             rinkeby: config.etherscanApiKey,
+            polygon: config.polygonscanApiKey,
             polygonMumbai: config.polygonscanApiKey,
         },
     },
