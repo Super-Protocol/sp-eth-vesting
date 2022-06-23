@@ -13,7 +13,7 @@ coverage.json
 
 # misc
 .env
-
+beneficiaries.json
 
 # Logs
 logs

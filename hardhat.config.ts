@@ -6,6 +6,8 @@ import 'hardhat-contract-sizer';
 import 'solidity-coverage';
 import { utils } from 'ethers';
 import { config } from './config';
+import './tasks/initializeInsiderVesting';
+import './tasks/initializeVesting';
 
 export default {
     solidity: {

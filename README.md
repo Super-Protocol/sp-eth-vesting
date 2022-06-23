@@ -38,6 +38,15 @@ $ npx hardhat run scripts/deployInsiderVesting.ts --network <network_name>
 npx hardhat verify --network <network_name> <contract_address> <initializer_address>
 ```
 
+### Tasks
+
+```sh
+cp beneficiaries.json.example beneficiaries.json
+
+npx hardhat initialize-vesting --network <network_name> --contract <contract_address> --token <token_address> --start <vesting_start_timestamp> --finish <vesting_finish_timestamp>
+npx hardhat initialize-insider-vesting --network <network_name> --contract <contract_address> --token <token_address> --start <vesting_start_timestamp> --beneficiaries <path_to_beneficiaries_json>
+```
+
 ### Prettier and linter
 
 ```sh
