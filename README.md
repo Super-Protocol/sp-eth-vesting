@@ -3,12 +3,10 @@
 ```sh
 cp .env.example .env
 ```
-Fill in the fields: 
-• TEST_PRIVATE_KEY - key of local node deployer account  
-• PRIVATE_KEY - key of deployer account  
-• INITIALIZER - initializer account (address)  
-• MAINNET_URL - RPC node url  
-• ETHERSCAN_API_KEY - api key of block explorer  
+Fill in the fields:
+• DEPLOYER_PRIVATE_KEY - key of deployer account
+• INITIALIZER_ADDRESS - address of initializer account
+• RPC_URL - RPC node url
 
 ### Tests
 

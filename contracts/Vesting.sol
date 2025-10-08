@@ -23,11 +23,7 @@ contract Vesting {
         owner = _owner;
     }
 
-    function initialize(
-        address _token,
-        uint64 _vestingStart,
-        uint64 _vestingFinish
-    ) external onlyOwnerOrDao {
+    function initialize(address _token, uint64 _vestingStart, uint64 _vestingFinish) external onlyOwnerOrDao {
         require(!initialized, "Already initialized");
         require(_vestingStart > block.timestamp, "Lock start should be in the future");
         require(_vestingFinish > _vestingStart, "Lock finish should be later than start");

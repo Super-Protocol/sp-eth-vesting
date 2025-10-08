@@ -1,12 +1,17 @@
 {
   "overrides": [
     {
-      "files": ["*.ts", "*.js"],
+      "files": [
+        "*.ts",
+        "*.js",
+        "*.cjs"
+      ],
       "options": {
         "semi": true,
         "singleQuote": true,
         "arrowParens": "avoid",
         "tabWidth": 4,
+        "trailingComma": "es5",
         "printWidth": 150
       }
     },
@@ -17,8 +22,13 @@
         "tabWidth": 4,
         "useTabs": false,
         "singleQuote": false,
-        "bracketSpacing": false,
-        "explicitTypes": "always"
+        "bracketSpacing": false
+      }
+    },
+    {
+      "files": "*.json",
+      "options": {
+        "tabWidth": 4
       }
     }
   ]

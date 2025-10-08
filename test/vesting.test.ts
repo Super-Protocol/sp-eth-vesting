@@ -1,11 +1,13 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers, network } from 'hardhat';
 import { SuperproToken, Vesting } from '../typechain';
 
 describe('Vesting', function () {
     let superproToken: SuperproToken;
+    let superproTokenAddress: string;
     let vesting: Vesting;
+    let vestingAddress: string;
     let deployer: SignerWithAddress, admin: SignerWithAddress, impostor: SignerWithAddress, dao: SignerWithAddress;
 
     const ONE_DAY = 86400;
@@ -20,11 +22,14 @@ describe('Vesting', function () {
         [deployer, admin, impostor, dao] = await ethers.getSigners();
         const superproTokenFactory = await ethers.getContractFactory('SuperproToken');
         superproToken = await superproTokenFactory.deploy(TOTAL_TOKENS, 'SPT', 'Superpro Test Token');
-        await superproToken.deployed();
+        await superproToken.waitForDeployment();
+        superproTokenAddress = await superproToken.getAddress();
 
         const vestingFactory = await ethers.getContractFactory('Vesting');
         vesting = await vestingFactory.deploy(admin.address);
-        await vesting.deployed();
+        await vesting.waitForDeployment();
+        vestingAddress = await vesting.getAddress();
+
         snapshot = await network.provider.request({
             method: 'evm_snapshot',
             params: [],
@@ -44,7 +49,7 @@ describe('Vesting', function () {
     });
 
     function parseEther(amount: number) {
-        return ethers.utils.parseEther(amount.toString());
+        return ethers.parseEther(amount.toString());
     }
 
     async function setNextTimestamp(timestamp: number) {
@@ -53,34 +58,34 @@ describe('Vesting', function () {
     }
 
     async function initializeDefault() {
-        await superproToken.transfer(vesting.address, TOTAL_TOKENS);
-        await vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_FINISH);
+        await superproToken.transfer(vestingAddress, TOTAL_TOKENS);
+        await vesting.connect(admin).initialize(superproTokenAddress, VESTING_START, VESTING_FINISH);
     }
 
     it('should set owner and token addresses on initialize', async function () {
         await initializeDefault();
 
         expect(await vesting.owner()).be.equal(admin.address);
-        expect(await vesting.token()).be.equal(superproToken.address);
+        expect(await vesting.token()).be.equal(superproTokenAddress);
     });
 
     it('should forbid to initialize more than once', async function () {
         await initializeDefault();
-        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_FINISH)).be.revertedWith('Already initialized');
+        await expect(vesting.connect(admin).initialize(superproTokenAddress, VESTING_START, VESTING_FINISH)).be.revertedWith('Already initialized');
     });
 
     it('should revert initialize if dates are not correct', async function () {
-        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_START)).be.revertedWith(
+        await expect(vesting.connect(admin).initialize(superproTokenAddress, VESTING_START, VESTING_START)).be.revertedWith(
             'Lock finish should be later than start'
         );
         setNextTimestamp(VESTING_START);
-        await expect(vesting.connect(admin).initialize(superproToken.address, VESTING_START, VESTING_FINISH)).be.revertedWith(
+        await expect(vesting.connect(admin).initialize(superproTokenAddress, VESTING_START, VESTING_FINISH)).be.revertedWith(
             'Lock start should be in the future'
         );
     });
 
     it('should revert initialize if sender is not the owner', async function () {
-        await expect(vesting.connect(impostor).initialize(superproToken.address, VESTING_START, VESTING_FINISH)).be.revertedWith('Not allowed');
+        await expect(vesting.connect(impostor).initialize(superproTokenAddress, VESTING_START, VESTING_FINISH)).be.revertedWith('Not allowed');
     });
 
     it('should forbid to claim if requested more than unlocked', async function () {
@@ -89,10 +94,10 @@ describe('Vesting', function () {
         await expect(vesting.connect(admin).calculateClaim()).be.reverted;
 
         setNextTimestamp(VESTING_START + 999);
-        await vesting.connect(admin).claim(admin.address, tokensPerSec.mul(1000));
+        await vesting.connect(admin).claim(admin.address, tokensPerSec * 1000n);
 
         setNextTimestamp(VESTING_START + 1998);
-        await expect(vesting.connect(admin).claim(admin.address, tokensPerSec.mul(1000))).be.revertedWith('Requested more than unlocked');
+        await expect(vesting.connect(admin).claim(admin.address, tokensPerSec * 1000n)).be.revertedWith('Requested more than unlocked');
     });
 
     it('should allow beneficiary to claim all after vesting finished', async function () {
@@ -111,16 +116,16 @@ describe('Vesting', function () {
         const oneForthDuration = VESTING_DURATION / 4;
 
         setNextTimestamp(VESTING_START + oneForthDuration);
-        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
+        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS / 4n);
 
         setNextTimestamp(VESTING_START + oneForthDuration * 2);
-        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
+        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS / 4n);
 
         setNextTimestamp(VESTING_START + oneForthDuration * 3);
-        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
+        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS / 4n);
 
         setNextTimestamp(VESTING_START + VESTING_DURATION);
-        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS.div(4));
+        await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS / 4n);
     });
 
     it('should transfer authority to another account', async function () {

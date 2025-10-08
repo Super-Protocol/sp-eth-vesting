@@ -1,6 +1,5 @@
 import { task } from 'hardhat/config';
 import fs from 'fs';
-import '@nomiclabs/hardhat-ethers';
 import { BigNumber } from '@ethersproject/bignumber';
 
 interface Beneficiary {

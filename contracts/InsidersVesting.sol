@@ -72,11 +72,7 @@ contract InsidersVesting {
         }
     }
 
-    function initialize(
-        address tokenAddress,
-        BeneficiaryInit[] memory beneficiaries,
-        uint64 _vestingStart
-    ) external {
+    function initialize(address tokenAddress, BeneficiaryInit[] memory beneficiaries, uint64 _vestingStart) external {
         require(msg.sender == owner, "Not allowed to initialize");
         require(!initialized, "Already initialized");
         initialized = true;
@@ -117,11 +113,7 @@ contract InsidersVesting {
         emit TokensClaimed(sender, to, amount);
     }
 
-    function transfer(
-        address to,
-        uint96 tokensLocked,
-        uint96 tokensUnlocked
-    ) external onlyFromWhitelist {
+    function transfer(address to, uint96 tokensLocked, uint96 tokensUnlocked) external onlyFromWhitelist {
         BeneficiaryInfo memory sender = _calculateClaimAndStage(msg.sender);
         require(sender.tokensLocked >= tokensLocked, "Requested more tokens than locked");
         require(sender.tokensUnlocked >= tokensUnlocked, "Requested more tokens than unlocked");
@@ -133,11 +125,7 @@ contract InsidersVesting {
         _transfer(to, sender.tokensLocked, sender.tokensUnlocked);
     }
 
-    function _transfer(
-        address to,
-        uint96 tokensLocked,
-        uint96 tokensUnlocked
-    ) private {
+    function _transfer(address to, uint96 tokensLocked, uint96 tokensUnlocked) private {
         require(msg.sender != to, "Cannot transfer to the same address");
         uint64 timestamp = uint64(block.timestamp);
         BeneficiaryInfo storage sender = whitelist[msg.sender];

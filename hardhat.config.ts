@@ -1,17 +1,16 @@
-import '@nomiclabs/hardhat-waffle';
-import '@nomiclabs/hardhat-etherscan';
 import '@typechain/hardhat';
-import 'hardhat-gas-reporter';
+import '@nomicfoundation/hardhat-chai-matchers';
 import 'hardhat-contract-sizer';
+import 'solidity-docgen';
 import 'solidity-coverage';
-import { utils } from 'ethers';
 import { config } from './config';
+import { parseEther } from 'ethers';
 import './tasks/initializeInsiderVesting';
-import './tasks/initializeVesting';
+import './tasks/InitializeVesting';
 
 export default {
     solidity: {
-        version: '0.8.9',
+        version: '0.8.30',
         settings: {
             optimizer: {
                 enabled: true,
@@ -31,7 +30,11 @@ export default {
     },
     mocha: {
         timeout: 0,
-        bail: true,
+        bail: config.mochaBail,
+    },
+    typechain: {
+        outDir: 'typechain',
+        target: 'ethers-v6',
     },
     networks: {
         hardhat: {
@@ -42,25 +45,23 @@ export default {
             gasPrice: 1,
             initialBaseFeePerGas: 1,
             accounts: {
-                accountsBalance: utils.parseEther('100000000').toString(),
+                accountsBalance: parseEther('100000000').toString(),
                 count: 10,
             },
         },
-        mumbai: {
-            url: config.mumbaiUrl,
-            accounts: [config.testPrivateKey],
+        local: {
+            url: config.rpcUrl,
+            account: config.deployerPrivateKey,
         },
-        ethereum: {
-            url: config.mainnetUrl,
-            accounts: [config.privateKey],
+        opbnbTestnet: {
+            chainId: 5611,
+            url: config.rpcUrl,
+            accounts: [config.deployerPrivateKey],
         },
-    },
-    etherscan: {
-        apiKey: {
-            mainnet: config.etherscanApiKey,
-            rinkeby: config.etherscanApiKey,
-            polygon: config.polygonscanApiKey,
-            polygonMumbai: config.polygonscanApiKey,
+        opbnb: {
+            chainId: 204,
+            url: config.rpcUrl,
+            accounts: [config.deployerPrivateKey],
         },
     },
 };
