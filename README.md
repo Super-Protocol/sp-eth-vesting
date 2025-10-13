@@ -1,0 +1,58 @@
+# Useful commands
+### Setup
+```sh
+cp .env.example .env
+```
+Fill in the fields:
+• DEPLOYER_PRIVATE_KEY - key of deployer account
+• INITIALIZER_ADDRESS - address of initializer account
+• RPC_URL - RPC node url
+
+### Tests
+
+```sh
+$ npx hardhat test
+$ npx hardhat test test/vesting.test.ts --show-stack-traces
+```
+
+### Deploy to locale node
+
+```sh
+$ npx hardhat node
+$ npx hardhat run scripts/deployVesting.ts --network local
+$ npx hardhat run scripts/deployInsiderVesting.ts --network local
+$ ethernal listen
+```
+
+### Deploy to other networks
+
+```sh
+$ npx hardhat run scripts/deployVesting.ts --network <network_name>
+$ npx hardhat run scripts/deployInsiderVesting.ts --network <network_name>
+```
+
+### Verify code
+```sh
+npx hardhat verify --network <network_name> <contract_address> <initializer_address>
+```
+
+### Tasks
+
+```sh
+cp beneficiaries.json.example beneficiaries.json
+
+npx hardhat initialize-vesting --network <network_name> --contract <contract_address> --token <token_address> --start <vesting_start_timestamp> --finish <vesting_finish_timestamp>
+npx hardhat initialize-insider-vesting --network <network_name> --contract <contract_address> --token <token_address> --start <vesting_start_timestamp> --beneficiaries <path_to_beneficiaries_json>
+```
+
+### Prettier and linter
+
+```sh
+$ npm run eslint
+$ npm run prettier
+$ npx prettier --write 'contracts/**/*.sol'
+```
+
+# Useful plugins and extensions
+
+* Visual Studio Code ESLint extension: https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint

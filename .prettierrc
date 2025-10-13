@@ -1,0 +1,35 @@
+{
+  "overrides": [
+    {
+      "files": [
+        "*.ts",
+        "*.js",
+        "*.cjs"
+      ],
+      "options": {
+        "semi": true,
+        "singleQuote": true,
+        "arrowParens": "avoid",
+        "tabWidth": 4,
+        "trailingComma": "es5",
+        "printWidth": 150
+      }
+    },
+    {
+      "files": "*.sol",
+      "options": {
+        "printWidth": 150,
+        "tabWidth": 4,
+        "useTabs": false,
+        "singleQuote": false,
+        "bracketSpacing": false
+      }
+    },
+    {
+      "files": "*.json",
+      "options": {
+        "tabWidth": 4
+      }
+    }
+  ]
+}
