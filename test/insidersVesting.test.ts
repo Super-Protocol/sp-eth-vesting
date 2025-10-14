@@ -2,6 +2,8 @@ import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers, network } from 'hardhat';
 import { SuperproToken, InsidersVesting } from '../typechain';
+import { Wallet } from 'ethers';
+import crypto from 'crypto';
 
 interface BeneficiaryInit {
     account: string;
@@ -75,15 +77,48 @@ describe('InsidersVesting', function () {
 
     it('should be able to iterate over 200 beneficiaries', async function () {
         const beneficiaries: BeneficiaryInit[] = new Array(200); // 400 also passes
+        const genRandomAddress = async () => {
+            const id = crypto.randomBytes(32).toString('hex');
+            const w = new Wallet('0x' + id);
+            return w.getAddress();
+        };
         for (let i = 0; i < beneficiaries.length; i++) {
             beneficiaries[i] = {
-                account: user1.address,
+                account: await genRandomAddress(),
                 tokenAmount: parseEther(2000000),
             };
         }
 
         await superproToken.transfer(vestingAddress, TOKENS_TOTAL);
         await expect(vesting.initialize(superproTokenAddress, beneficiaries, START)).not.be.reverted;
+    });
+
+    it('should reject zero beneficiary address', async function () {
+        const beneficiaries: BeneficiaryInit[] = [
+            {
+                account: '0x0000000000000000000000000000000000000000',
+                tokenAmount: TOKENS_TOTAL,
+            },
+        ];
+
+        await superproToken.transfer(vestingAddress, TOKENS_TOTAL);
+        await expect(vesting.initialize(superproTokenAddress, beneficiaries, START)).be.revertedWith('Beneficiary address must be valid');
+    });
+
+    it('should reject duplicate beneficiary', async function () {
+        const beneficiaries: BeneficiaryInit[] = [
+            {
+                account: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+                tokenAmount: parseEther(2000000),
+            },
+            {
+                account: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+                tokenAmount: TOKENS_TOTAL - parseEther(2000000),
+            },
+        ];
+
+        await superproToken.transfer(vestingAddress, TOKENS_TOTAL);
+        await expect(vesting.initialize(superproTokenAddress, beneficiaries, START)).be.revertedWith('Duplicate beneficiary');
     });
 
     it('should initialize correctly', async function () {

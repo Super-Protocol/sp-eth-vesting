@@ -78,15 +78,17 @@ contract InsidersVesting {
         initialized = true;
         require(beneficiaries.length > 0, "No users");
         token = IERC20(tokenAddress);
-        uint96 tokensLimitRemaining = uint96(token.balanceOf(address(this)));
+        uint256 tokensLimitRemaining = token.balanceOf(address(this));
         require(tokensLimitRemaining > 0, "Zero token balance");
         require(_vestingStart > block.timestamp, "Start timestamp is in the past");
         vestingStart = _vestingStart;
         lockupEnd = _vestingStart + VESTING_LOCKUP_DURATION;
         vestingFinish = _vestingStart + VESTING_LOCKUP_DURATION + VESTING_DURATION;
 
-        for (uint96 i = 0; i < beneficiaries.length; i++) {
+        for (uint256 i = 0; i < beneficiaries.length; i++) {
             BeneficiaryInit memory b = beneficiaries[i];
+            require(b.account != address(0), "Beneficiary address must be valid");
+            require(whitelist[b.account].lastVestingUpdate == 0, "Duplicate beneficiary");
             require(tokensLimitRemaining >= b.tokenAmount, "Tokens sum is greater than balance");
             tokensLimitRemaining -= b.tokenAmount;
             whitelist[b.account] = BeneficiaryInfo(_vestingStart, b.tokenAmount, 0, 0, b.tokenAmount / VESTING_DURATION, lockupEnd);
@@ -127,6 +129,7 @@ contract InsidersVesting {
 
     function _transfer(address to, uint96 tokensLocked, uint96 tokensUnlocked) private {
         require(msg.sender != to, "Cannot transfer to the same address");
+        require(to != address(0), "Cannot transfer to zero address");
         uint64 timestamp = uint64(block.timestamp);
         BeneficiaryInfo storage sender = whitelist[msg.sender];
         BeneficiaryInfo storage recipient = whitelist[to];

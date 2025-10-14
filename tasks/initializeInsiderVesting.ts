@@ -1,10 +1,9 @@
 import { task } from 'hardhat/config';
 import fs from 'fs';
-import { BigNumber } from '@ethersproject/bignumber';
 
-interface Beneficiary {
+interface BeneficiaryJson {
     account: string;
-    tokenAmount: BigNumber;
+    tokenAmount: string | number | bigint;
 }
 
 task('initialize-insider-vesting', 'Initialize Vesting contract')
@@ -17,9 +16,13 @@ task('initialize-insider-vesting', 'Initialize Vesting contract')
         const vesting = await ethers.getContractAt('InsidersVesting', taskArgs.contract);
 
         const beneficiariesFilename = taskArgs.beneficiaries;
-        const beneficiaries = JSON.parse(fs.readFileSync(beneficiariesFilename).toString()) as Beneficiary[];
-
-        const txn = await vesting.connect(initializer).initialize(taskArgs.token, beneficiaries, taskArgs.start);
+        const parsed = JSON.parse(fs.readFileSync(beneficiariesFilename, 'utf8')) as BeneficiaryJson[];
+        const beneficiaries = parsed.map(b => ({
+            account: b.account,
+            tokenAmount: BigInt(b.tokenAmount as any),
+        }));
+        const start: bigint = BigInt(taskArgs.start);
+        const txn = await vesting.connect(initializer).initialize(taskArgs.token, beneficiaries, start);
         await txn.wait();
 
         console.log('Done');

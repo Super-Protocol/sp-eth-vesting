@@ -78,7 +78,7 @@ describe('Vesting', function () {
         await expect(vesting.connect(admin).initialize(superproTokenAddress, VESTING_START, VESTING_START)).be.revertedWith(
             'Lock finish should be later than start'
         );
-        setNextTimestamp(VESTING_START);
+        await setNextTimestamp(VESTING_START);
         await expect(vesting.connect(admin).initialize(superproTokenAddress, VESTING_START, VESTING_FINISH)).be.revertedWith(
             'Lock start should be in the future'
         );
@@ -91,19 +91,19 @@ describe('Vesting', function () {
     it('should forbid to claim if requested more than unlocked', async function () {
         await initializeDefault();
         const tokensPerSec = await vesting.tokensPerSec();
-        await expect(vesting.connect(admin).calculateClaim()).be.reverted;
+        expect(await vesting.connect(admin).calculateClaim()).eq(0n);
 
-        setNextTimestamp(VESTING_START + 999);
+        await setNextTimestamp(VESTING_START + 999);
         await vesting.connect(admin).claim(admin.address, tokensPerSec * 1000n);
 
-        setNextTimestamp(VESTING_START + 1998);
+        await setNextTimestamp(VESTING_START + 1998);
         await expect(vesting.connect(admin).claim(admin.address, tokensPerSec * 1000n)).be.revertedWith('Requested more than unlocked');
     });
 
     it('should allow beneficiary to claim all after vesting finished', async function () {
         await initializeDefault();
 
-        setNextTimestamp(VESTING_FINISH);
+        await setNextTimestamp(VESTING_FINISH);
 
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS);
         expect(await vesting.tokensLocked()).be.equal(0);
@@ -115,16 +115,16 @@ describe('Vesting', function () {
         await initializeDefault();
         const oneForthDuration = VESTING_DURATION / 4;
 
-        setNextTimestamp(VESTING_START + oneForthDuration);
+        await setNextTimestamp(VESTING_START + oneForthDuration);
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS / 4n);
 
-        setNextTimestamp(VESTING_START + oneForthDuration * 2);
+        await setNextTimestamp(VESTING_START + oneForthDuration * 2);
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS / 4n);
 
-        setNextTimestamp(VESTING_START + oneForthDuration * 3);
+        await setNextTimestamp(VESTING_START + oneForthDuration * 3);
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS / 4n);
 
-        setNextTimestamp(VESTING_START + VESTING_DURATION);
+        await setNextTimestamp(VESTING_START + VESTING_DURATION);
         await vesting.connect(admin).claim(admin.address, TOTAL_TOKENS / 4n);
     });
 

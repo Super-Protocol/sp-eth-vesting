@@ -1,12 +1,15 @@
 import '@typechain/hardhat';
 import '@nomicfoundation/hardhat-chai-matchers';
+import '@nomicfoundation/hardhat-ethers';
 import 'hardhat-contract-sizer';
+import 'hardhat-gas-reporter';
 import 'solidity-docgen';
 import 'solidity-coverage';
 import { config } from './config';
 import { parseEther } from 'ethers';
 import './tasks/initializeInsiderVesting';
 import './tasks/InitializeVesting';
+import 'dotenv/config';
 
 export default {
     solidity: {
