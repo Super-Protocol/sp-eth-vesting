@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.30;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -30,8 +30,8 @@ contract InsidersVesting {
     uint64 public lockupEnd;
     uint64 public vestingFinish;
 
-    uint64 public constant VESTING_LOCKUP_DURATION = 90 days;
-    uint64 public constant VESTING_DURATION = 86745600; // 33 months
+    uint64 public VESTING_LOCKUP_DURATION;
+    uint64 public VESTING_DURATION;
 
     IERC20 public token;
 
@@ -72,7 +72,13 @@ contract InsidersVesting {
         }
     }
 
-    function initialize(address tokenAddress, BeneficiaryInit[] memory beneficiaries, uint64 _vestingStart) external {
+    function initialize(
+        address tokenAddress,
+        BeneficiaryInit[] memory beneficiaries,
+        uint64 _vestingStart,
+        uint64 vestingLockupDuration,
+        uint64 vestingDuration
+    ) external {
         require(msg.sender == owner, "Not allowed to initialize");
         require(!initialized, "Already initialized");
         initialized = true;
@@ -81,6 +87,9 @@ contract InsidersVesting {
         uint256 tokensLimitRemaining = token.balanceOf(address(this));
         require(tokensLimitRemaining > 0, "Zero token balance");
         require(_vestingStart > block.timestamp, "Start timestamp is in the past");
+        VESTING_LOCKUP_DURATION = vestingLockupDuration;
+        VESTING_DURATION = vestingDuration;
+
         vestingStart = _vestingStart;
         lockupEnd = _vestingStart + VESTING_LOCKUP_DURATION;
         vestingFinish = _vestingStart + VESTING_LOCKUP_DURATION + VESTING_DURATION;

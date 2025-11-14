@@ -5,6 +5,7 @@ import 'hardhat-contract-sizer';
 import 'hardhat-gas-reporter';
 import 'solidity-docgen';
 import 'solidity-coverage';
+import '@nomicfoundation/hardhat-verify';
 import { config } from './config';
 import { parseEther } from 'ethers';
 import './tasks/initializeInsiderVesting';
@@ -15,6 +16,7 @@ export default {
     solidity: {
         version: '0.8.30',
         settings: {
+            viaIR: true,
             optimizer: {
                 enabled: true,
                 runs: 1000,
@@ -52,19 +54,30 @@ export default {
                 count: 10,
             },
         },
-        local: {
-            url: 'http://127.0.0.1:8545',
-            accounts: ['0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'],
-        },
-        opbnbTestnet: {
-            chainId: 5611,
+        bscTestnet: {
+            chainId: 97,
             url: config.rpcUrl,
             accounts: [config.deployerPrivateKey],
         },
-        opbnb: {
-            chainId: 204,
+        bsc: {
+            chainId: 56,
             url: config.rpcUrl,
             accounts: [config.deployerPrivateKey],
         },
+    },
+    etherscan: {
+        apiKey: {
+            bsc: process.env.ETHERSCAN_API_KEY,
+        },
+        customChains: [
+            {
+                network: 'bsc',
+                chainId: 56,
+                urls: {
+                    apiURL: 'https://api.etherscan.io/v2/api?chainid=56',
+                    browserURL: 'https://bscscan.com/',
+                },
+            },
+        ],
     },
 };
