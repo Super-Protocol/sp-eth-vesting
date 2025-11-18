@@ -1,18 +1,22 @@
-import '@nomiclabs/hardhat-waffle';
-import '@nomiclabs/hardhat-etherscan';
 import '@typechain/hardhat';
-import 'hardhat-gas-reporter';
+import '@nomicfoundation/hardhat-chai-matchers';
+import '@nomicfoundation/hardhat-ethers';
 import 'hardhat-contract-sizer';
+import 'hardhat-gas-reporter';
+import 'solidity-docgen';
 import 'solidity-coverage';
-import { utils } from 'ethers';
+import '@nomicfoundation/hardhat-verify';
 import { config } from './config';
+import { parseEther } from 'ethers';
 import './tasks/initializeInsiderVesting';
-import './tasks/initializeVesting';
+import './tasks/InitializeVesting';
+import 'dotenv/config';
 
 export default {
     solidity: {
-        version: '0.8.9',
+        version: '0.8.30',
         settings: {
+            viaIR: true,
             optimizer: {
                 enabled: true,
                 runs: 1000,
@@ -31,7 +35,11 @@ export default {
     },
     mocha: {
         timeout: 0,
-        bail: true,
+        bail: config.mochaBail,
+    },
+    typechain: {
+        outDir: 'typechain',
+        target: 'ethers-v6',
     },
     networks: {
         hardhat: {
@@ -42,25 +50,34 @@ export default {
             gasPrice: 1,
             initialBaseFeePerGas: 1,
             accounts: {
-                accountsBalance: utils.parseEther('100000000').toString(),
+                accountsBalance: parseEther('100000000').toString(),
                 count: 10,
             },
         },
-        mumbai: {
-            url: config.mumbaiUrl,
-            accounts: [config.testPrivateKey],
+        bscTestnet: {
+            chainId: 97,
+            url: config.rpcUrl,
+            accounts: [config.deployerPrivateKey],
         },
-        ethereum: {
-            url: config.mainnetUrl,
-            accounts: [config.privateKey],
+        bsc: {
+            chainId: 56,
+            url: config.rpcUrl,
+            accounts: [config.deployerPrivateKey],
         },
     },
     etherscan: {
         apiKey: {
-            mainnet: config.etherscanApiKey,
-            rinkeby: config.etherscanApiKey,
-            polygon: config.polygonscanApiKey,
-            polygonMumbai: config.polygonscanApiKey,
+            bsc: process.env.ETHERSCAN_API_KEY,
         },
+        customChains: [
+            {
+                network: 'bsc',
+                chainId: 56,
+                urls: {
+                    apiURL: 'https://api.etherscan.io/v2/api?chainid=56',
+                    browserURL: 'https://bscscan.com/',
+                },
+            },
+        ],
     },
 };

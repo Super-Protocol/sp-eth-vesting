@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.30;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -30,8 +30,8 @@ contract InsidersVesting {
     uint64 public lockupEnd;
     uint64 public vestingFinish;
 
-    uint64 public constant VESTING_LOCKUP_DURATION = 90 days;
-    uint64 public constant VESTING_DURATION = 86745600; // 33 months
+    uint64 public VESTING_LOCKUP_DURATION;
+    uint64 public VESTING_DURATION;
 
     IERC20 public token;
 
@@ -75,22 +75,29 @@ contract InsidersVesting {
     function initialize(
         address tokenAddress,
         BeneficiaryInit[] memory beneficiaries,
-        uint64 _vestingStart
+        uint64 _vestingStart,
+        uint64 vestingLockupDuration,
+        uint64 vestingDuration
     ) external {
         require(msg.sender == owner, "Not allowed to initialize");
         require(!initialized, "Already initialized");
         initialized = true;
         require(beneficiaries.length > 0, "No users");
         token = IERC20(tokenAddress);
-        uint96 tokensLimitRemaining = uint96(token.balanceOf(address(this)));
+        uint256 tokensLimitRemaining = token.balanceOf(address(this));
         require(tokensLimitRemaining > 0, "Zero token balance");
         require(_vestingStart > block.timestamp, "Start timestamp is in the past");
+        VESTING_LOCKUP_DURATION = vestingLockupDuration;
+        VESTING_DURATION = vestingDuration;
+
         vestingStart = _vestingStart;
         lockupEnd = _vestingStart + VESTING_LOCKUP_DURATION;
         vestingFinish = _vestingStart + VESTING_LOCKUP_DURATION + VESTING_DURATION;
 
-        for (uint96 i = 0; i < beneficiaries.length; i++) {
+        for (uint256 i = 0; i < beneficiaries.length; i++) {
             BeneficiaryInit memory b = beneficiaries[i];
+            require(b.account != address(0), "Beneficiary address must be valid");
+            require(whitelist[b.account].lastVestingUpdate == 0, "Duplicate beneficiary");
             require(tokensLimitRemaining >= b.tokenAmount, "Tokens sum is greater than balance");
             tokensLimitRemaining -= b.tokenAmount;
             whitelist[b.account] = BeneficiaryInfo(_vestingStart, b.tokenAmount, 0, 0, b.tokenAmount / VESTING_DURATION, lockupEnd);
@@ -117,11 +124,7 @@ contract InsidersVesting {
         emit TokensClaimed(sender, to, amount);
     }
 
-    function transfer(
-        address to,
-        uint96 tokensLocked,
-        uint96 tokensUnlocked
-    ) external onlyFromWhitelist {
+    function transfer(address to, uint96 tokensLocked, uint96 tokensUnlocked) external onlyFromWhitelist {
         BeneficiaryInfo memory sender = _calculateClaimAndStage(msg.sender);
         require(sender.tokensLocked >= tokensLocked, "Requested more tokens than locked");
         require(sender.tokensUnlocked >= tokensUnlocked, "Requested more tokens than unlocked");
@@ -133,12 +136,9 @@ contract InsidersVesting {
         _transfer(to, sender.tokensLocked, sender.tokensUnlocked);
     }
 
-    function _transfer(
-        address to,
-        uint96 tokensLocked,
-        uint96 tokensUnlocked
-    ) private {
+    function _transfer(address to, uint96 tokensLocked, uint96 tokensUnlocked) private {
         require(msg.sender != to, "Cannot transfer to the same address");
+        require(to != address(0), "Cannot transfer to zero address");
         uint64 timestamp = uint64(block.timestamp);
         BeneficiaryInfo storage sender = whitelist[msg.sender];
         BeneficiaryInfo storage recipient = whitelist[to];

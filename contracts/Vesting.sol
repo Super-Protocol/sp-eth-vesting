@@ -23,11 +23,7 @@ contract Vesting {
         owner = _owner;
     }
 
-    function initialize(
-        address _token,
-        uint64 _vestingStart,
-        uint64 _vestingFinish
-    ) external onlyOwnerOrDao {
+    function initialize(address _token, uint64 _vestingStart, uint64 _vestingFinish) external onlyOwnerOrDao {
         require(!initialized, "Already initialized");
         require(_vestingStart > block.timestamp, "Lock start should be in the future");
         require(_vestingFinish > _vestingStart, "Lock finish should be later than start");
@@ -40,6 +36,9 @@ contract Vesting {
     }
 
     function calculateClaim() public view returns (uint96) {
+        if (block.timestamp <= vestingStart) {
+            return 0;
+        }
         if (block.timestamp < vestingFinish) {
             return (uint64(block.timestamp) - vestingStart) * tokensPerSec - tokensClaimed;
         }
